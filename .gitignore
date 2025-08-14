@@ -9,7 +9,8 @@ eval_all.sh
 eval.sh
 generate.sh
 test.py
-./data_all/data_zh/dialogue_history
+dialogue_history
 *.env
 !.env.template
 # leaderboard/
+.DS_Store

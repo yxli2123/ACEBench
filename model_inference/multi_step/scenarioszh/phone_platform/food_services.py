@@ -1,8 +1,9 @@
-
-from typing import Dict, List, Union
 from datetime import datetime
-from model_inference.multi_turn.scenarioszh.phone_platform.base_api import BaseApi
+from typing import Dict, List, Union
 
+from model_inference.multi_turn.scenarioszh.phone_platform.base_api import (
+    BaseApi,
+)
 
 
 class FoodPlatform(BaseApi):
@@ -17,16 +18,42 @@ class FoodPlatform(BaseApi):
         """
         # 设置用户和初始金额
         self.users: Dict[str, Dict[str, Union[str, float]]] = {
-            "Eve": {"user_id": "U100", "password": "password123", "balance": 500.0},
-            "Frank": {"user_id": "U101", "password": "password456", "balance": 300.0},
-            "Grace": {"user_id": "U102", "password": "password789", "balance": 150.0},
-            "Helen": {"user_id": "U103", "password": "password321", "balance": 800.0},
-            "Isaac": {"user_id": "U104", "password": "password654", "balance": 400.0},
-            "Jack": {"user_id": "U105", "password": "password654", "balance": 120.0},
+            "Eve": {
+                "user_id": "U100",
+                "password": "password123",
+                "balance": 500.0,
+            },
+            "Frank": {
+                "user_id": "U101",
+                "password": "password456",
+                "balance": 300.0,
+            },
+            "Grace": {
+                "user_id": "U102",
+                "password": "password789",
+                "balance": 150.0,
+            },
+            "Helen": {
+                "user_id": "U103",
+                "password": "password321",
+                "balance": 800.0,
+            },
+            "Isaac": {
+                "user_id": "U104",
+                "password": "password654",
+                "balance": 400.0,
+            },
+            "Jack": {
+                "user_id": "U105",
+                "password": "password654",
+                "balance": 120.0,
+            },
         }
 
         # 设置六个商家及其菜单
-        self.merchant_list: Dict[str, Dict[str, Union[str, List[Dict[str, Union[str, float]]]]]] = {
+        self.merchant_list: Dict[
+            str, Dict[str, Union[str, List[Dict[str, Union[str, float]]]]]
+        ] = {
             "达美乐": {
                 "merchant_id": "M100",
                 "service_type": "Pizza",
@@ -82,21 +109,22 @@ class FoodPlatform(BaseApi):
         # 订单列表
         self.orders: List[Dict[str, Union[str, int, float, datetime]]] = []
 
-
     def _load_scenario(self, scenario: dict, long_context=False) -> None:
         self.wifi = scenario.get("wifi", False)
-        self.logged_in = scenario.get("logged_in",True)
-        self.logged_in_users = scenario.get("logged_in_users",[])
+        self.logged_in = scenario.get("logged_in", True)
+        self.logged_in_users = scenario.get("logged_in_users", [])
 
-       # 用户登录功能
-    def login_food_platform(self, username: str, password: str) -> Dict[str, Union[bool, str]]:
+    # 用户登录功能
+    def login_food_platform(
+        self, username: str, password: str
+    ) -> Dict[str, Union[bool, str]]:
         if self.wifi == False:
             return {"status": False, "message": "wifi未打开，无法登录"}
         if username not in self.users:
             return {"status": False, "message": "用户不存在"}
         if self.users[username]["password"] != password:
             return {"status": False, "message": "密码错误"}
-        
+
         # 检查是否已经有用户登录
         if username in self.logged_in_users:
             return {"status": False, "message": f"{username} 已经登录"}
@@ -114,7 +142,7 @@ class FoodPlatform(BaseApi):
         """
         if not self.logged_in_users:
             return {"status": False, "message": "当前没有登录food platform"}
-        
+
         return {"status": True, "logged_in_users": self.logged_in_users}
 
     def check_balance(self, user_name: str) -> float:
@@ -127,18 +155,17 @@ class FoodPlatform(BaseApi):
             print(f"用户 {user_name} 不存在!")
             return 0.0
 
-
     # 添加外卖订单
     def add_food_delivery_order(
-        self, 
-        username: str, 
-        merchant_name: str, 
-        items: List[Dict[str, Union[str, int]]]
+        self,
+        username: str,
+        merchant_name: str,
+        items: List[Dict[str, Union[str, int]]],
     ) -> Dict[str, Union[bool, str]]:
         if username not in self.logged_in_users:
             return {
-                "status": False, 
-                "message": f"用户 {username} 未登录food platform"
+                "status": False,
+                "message": f"用户 {username} 未登录food platform",
             }
 
         if merchant_name not in self.merchant_list:
@@ -153,8 +180,8 @@ class FoodPlatform(BaseApi):
 
             if not isinstance(quantity, int) or quantity <= 0:
                 return {
-                    "status": False, 
-                    "message": f"无效的数量 {quantity} 对于商品 {product_name}"
+                    "status": False,
+                    "message": f"无效的数量 {quantity} 对于商品 {product_name}",
                 }
 
             # 查找商品价格
@@ -162,17 +189,19 @@ class FoodPlatform(BaseApi):
             for product in self.merchant_list[merchant_name]["menu"]:
                 if product["product"] == product_name:
                     total_price += product["price"] * quantity
-                    order_items.append({
-                        "product": product_name,
-                        "quantity": quantity,
-                        "price_per_unit": product["price"]
-                    })
+                    order_items.append(
+                        {
+                            "product": product_name,
+                            "quantity": quantity,
+                            "price_per_unit": product["price"],
+                        }
+                    )
                     product_found = True
                     break
             if not product_found:
                 return {
-                    "status": False, 
-                    "message": f"商品 {product_name} 不存在于 {merchant_name} 的菜单中"
+                    "status": False,
+                    "message": f"商品 {product_name} 不存在于 {merchant_name} 的菜单中",
                 }
 
         # 检查余额是否足够
@@ -189,12 +218,13 @@ class FoodPlatform(BaseApi):
         }
         self.orders.append(order)
         return {
-            "status": True, 
-            "message": f"外卖订单成功下单给 {merchant_name}，总金额为 {total_price} 元"
+            "status": True,
+            "message": f"外卖订单成功下单给 {merchant_name}，总金额为 {total_price} 元",
         }
 
-    
-    def get_products(self, merchant_name: str) -> Union[List[Dict[str, Union[str, float]]], str]:
+    def get_products(
+        self, merchant_name: str
+    ) -> Union[List[Dict[str, Union[str, float]]], str]:
         """
         查询特定商家的商品列表。
 
@@ -206,13 +236,14 @@ class FoodPlatform(BaseApi):
             return merchant["menu"]
         else:
             return {
-            "status": False, 
-            "message": f"商家 '{merchant_name}' 不存在"
-        }
-        
-        
+                "status": False,
+                "message": f"商家 '{merchant_name}' 不存在",
+            }
+
     #  查看订单
-    def view_orders(self, user_name: str) -> Dict[str, Union[bool, str, List[Dict[str, Union[str, int, float]]]]]:
+    def view_orders(
+        self, user_name: str
+    ) -> Dict[str, Union[bool, str, List[Dict[str, Union[str, int, float]]]]]:
         """
         查看用户的所有订单。
         Args:
@@ -220,15 +251,19 @@ class FoodPlatform(BaseApi):
         Returns:
             Dict[str, Union[bool, str, List[Dict[str, Union[str, int, float]]]]]: 用户的订单列表。
         """
-        user_orders = [order for order in self.orders if order['user_name'] == user_name]
+        user_orders = [
+            order for order in self.orders if order["user_name"] == user_name
+        ]
 
         if not user_orders:
             return {"status": False, "message": "用户没有订单记录"}
-        
+
         return {"status": True, "orders": user_orders}
 
     # 搜索订单
-    def search_orders(self, keyword: str) -> Dict[str, Union[bool, str, List[Dict[str, Union[str, float]]]]]:
+    def search_orders(
+        self, keyword: str
+    ) -> Dict[str, Union[bool, str, List[Dict[str, Union[str, float]]]]]:
         """
         根据关键词搜索订单。
         Args:
@@ -236,10 +271,17 @@ class FoodPlatform(BaseApi):
         Returns:
             Dict[str, Union[bool, str, List[Dict[str, Union[str, float]]]]]: 匹配的订单列表。
         """
-        matched_orders = [order for order in self.orders if keyword.lower() in order['merchant_name'].lower() or any(keyword.lower() in item.lower() for item in order.get('items', []))]
+        matched_orders = [
+            order
+            for order in self.orders
+            if keyword.lower() in order["merchant_name"].lower()
+            or any(
+                keyword.lower() in item.lower()
+                for item in order.get("items", [])
+            )
+        ]
 
         if not matched_orders:
             return {"status": False, "message": "没有找到匹配的订单"}
 
         return {"status": True, "orders": matched_orders}
-

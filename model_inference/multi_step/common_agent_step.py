@@ -1,6 +1,4 @@
-
-import re 
-
+import re
 
 MULTI_TURN_AGENT_PROMPT_SYSTEM_ZH = """你是一个AI系统，你的角色为system，请根据给定的API说明和对话历史1..t，为角色system生成在步骤t+1中生成相应的内容。
 1 如果上一步提供的信息完整，能够正常进行api的调用，你应该调用的API请求，API请求以[ApiName(key1='value1', key2='value2', ...)]的格式输出，将ApiName替换为实际的API名称，将key1、key2等替换为实际的参数名称，将value1、value2替换为实际参数取值。输出应以方括号"["开头，以方括号"]"结尾。API请求有多个时以英文逗号隔开，比如[ApiName(key1='value1', key2='value2', ...), ApiName(key1='value1', key2='value2', ...), ...]。不要在输出中输出任何其他解释或提示或API调用的结果。\n 
@@ -58,23 +56,24 @@ FOOD_SYSTEM_EN = """Below is the account information and passwords for different
 }"""
 
 
-class CommonAgent_Step():
+class CommonAgent_Step:
     def __init__(self, model, language, functions) -> None:
-
         self.model = model
         self.language = language
         self.functions = functions
 
-
     def respond(self, history) -> None:
-
         current_message = {}
         if self.language == "zh":
             system_prompt = MULTI_TURN_AGENT_PROMPT_SYSTEM_ZH
-            user_prompt = MULTI_TURN_AGENT_PROMPT_USER_ZH.format(functions = self.functions, history = history)
+            user_prompt = MULTI_TURN_AGENT_PROMPT_USER_ZH.format(
+                functions=self.functions, history=history
+            )
         elif self.language == "en":
             system_prompt = MULTI_TURN_AGENT_PROMPT_SYSTEM_EN
-            user_prompt = MULTI_TURN_AGENT_PROMPT_USER_EN.format(functions = self.functions, history = history)
+            user_prompt = MULTI_TURN_AGENT_PROMPT_USER_EN.format(
+                functions=self.functions, history=history
+            )
 
         response = self.model.inference(system_prompt, user_prompt)
         current_message["sender"] = "agent"

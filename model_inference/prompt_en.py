@@ -1,4 +1,3 @@
-
 SYSTEM_PROMPT_FOR_NORMAL_DATA_EN = """You are an AI assistant with the role name "assistant." Based on the provided API specifications and conversation history from steps 1 to t, generate the API requests that the assistant should call in step t+1. The API requests should be output in the format [ApiName(key1='value1', key2='value2', ...)], replacing ApiName with the actual API name, key1, key2, etc., with the actual parameter names, and value1, value2, etc., with the actual parameter values. The output should start with a square bracket "[" and end with a square bracket "]".
 If there are multiple API requests, separate them with commas, for example: [ApiName(key1='value1', key2='value2', ...), ApiName(key1='value1', key2='value2', ...), ...]. Do not include any other explanations, prompts, or API call results in the output.
 If the API parameter description does not specify otherwise, the parameter is optional (parameters mentioned in the user input need to be included in the output; if not mentioned, they do not need to be included).
@@ -32,7 +31,6 @@ tool: Provides the results of tool calls
 
 API Description:
 {function}"""
-
 
 
 SYSTEM_PROMPT_FOR_SPECIAL_DATA_EN = """You are an AI assistant with the role name "assistant". Based on the provided API specifications and conversation history from steps 1 to t, generate the API requests that the assistant should call in step t+1. Below are two specific scenarios:

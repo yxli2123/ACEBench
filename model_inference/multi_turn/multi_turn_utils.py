@@ -1,9 +1,8 @@
-
+import copy
 import importlib
 import inspect
 import json
 import re
-import copy
 from typing import List
 
 CLASS_FILE_PATH_MAPPING_ZH = {
@@ -23,13 +22,14 @@ CLASS_FILE_PATH_MAPPING_EN = {
 }
 STATELESS_CLASSES = []
 
+
 def execute_agent_func_call(
     func_call_list: list[str],  # a list of strings of func calls
     initial_config: dict,
     involved_classes: list,
     model_name: str,
     test_entry_id: str,
-    language: str
+    language: str,
 ) -> tuple[list[str], dict]:
     """
     TODO: Add docstring
@@ -42,9 +42,7 @@ def execute_agent_func_call(
         elif language == "en":
             module_name = CLASS_FILE_PATH_MAPPING_EN[class_name]
         # TODO: Handler the model name issue from handler more elegantly
-        instance_name = (
-            f"{model_name.replace('-', '_').replace('.', '_').replace('/', '_')}_{test_entry_id}_{class_name.lower()}_instance"
-        )
+        instance_name = f"{model_name.replace('-', '_').replace('.', '_').replace('/', '_')}_{test_entry_id}_{class_name.lower()}_instance"
         if instance_name not in globals():
             module = importlib.import_module(module_name)
             class_ = getattr(module, class_name)
@@ -75,21 +73,26 @@ def execute_agent_func_call(
             if method_name.startswith("_"):
                 continue
             if method_name in class_method_name_mapping:
-                class_method_name_mapping[method_name].append(instance_name)  # 直接在原列表上追加
+                class_method_name_mapping[method_name].append(
+                    instance_name
+                )  # 直接在原列表上追加
             else:
-                class_method_name_mapping[method_name] = [instance_name]  # 创建新的列表
-
+                class_method_name_mapping[method_name] = [
+                    instance_name
+                ]  # 创建新的列表
 
     execution_results = []
     for func_call in func_call_list:
         # Add the instance name to the method calls
-        func_calls = _process_method_calls(func_call, class_method_name_mapping)
-        
+        func_calls = _process_method_calls(
+            func_call, class_method_name_mapping
+        )
+
         try:
             for func_call in func_calls:
                 func_call_result = eval(func_call)
             execution_results.append(func_call_result)
-        except Exception as e:
+        except Exception:
             errors = "Error during execution: {str(e)}"
             return errors, involved_classes
 
@@ -116,10 +119,9 @@ def is_empty_execute_response(input_list: list):
     return False
 
 
-import re
-
-def _process_method_calls(function_call_string: str, instance_mapping) -> List[str]:
-    
+def _process_method_calls(
+    function_call_string: str, instance_mapping
+) -> List[str]:
     # 1. Compile regular expression
     compiled_pattern = re.compile(r"\b([a-zA-Z_]\w*)\s*(?=\()")
 

@@ -1,5 +1,6 @@
-from openai import OpenAI
 import os
+
+from openai import OpenAI
 
 SYSTEM_PROMPT_TRAVEL_ZH = """您是一名与agent互动的用户。
 
@@ -64,20 +65,25 @@ Rules:
 """
 
 
-
 def remove_prefix(text):
-    if text.startswith('user:'):
-        return text[5:] 
-    elif text.startswith('agent:'):
-        return text[6:]  
+    if text.startswith("user:"):
+        return text[5:]
+    elif text.startswith("agent:"):
+        return text[6:]
     else:
-        return text  
+        return text
 
 
-class APIUSER():
-
-    def __init__(self, model_name, involved_class, temperature=0.001, top_p=1, max_tokens=1000, language="zh") -> None:
-        
+class APIUSER:
+    def __init__(
+        self,
+        model_name,
+        involved_class,
+        temperature=0.001,
+        top_p=1,
+        max_tokens=1000,
+        language="zh",
+    ) -> None:
         self.model_name = model_name.lower()
         if "gpt" in self.model_name:
             api_key = os.getenv("GPT_API_KEY")
@@ -93,7 +99,7 @@ class APIUSER():
             base_url = os.getenv("KIMI_BASE_URL")
         else:
             raise ValueError(f"Unknown model name: {self.model_name}")
-            
+
         self.client = OpenAI(base_url=base_url, api_key=api_key)
         self.model_name = model_name
         self.temperature = temperature
@@ -103,8 +109,7 @@ class APIUSER():
         self.messages = []
         self.language = language
 
-    def get_init_prompt(self,question):
-
+    def get_init_prompt(self, question):
         if self.language == "zh":
             if "BaseApi" in self.involved_class:
                 system_prompt = SYSTEM_PROMPT_BASE_ZH
@@ -113,13 +118,14 @@ class APIUSER():
             self.messages = [
                 {
                     "role": "system",
-                    "content": system_prompt.format(instruction = question)
+                    "content": system_prompt.format(instruction=question),
                 },
                 {
                     "role": "user",
                     "content": "今天有什么需要帮助的吗？",
-                }]
-        
+                },
+            ]
+
         elif self.language == "en":
             if "BaseApi" in self.involved_class:
                 system_prompt = SYSTEM_PROMPT_BASE_EN
@@ -128,12 +134,13 @@ class APIUSER():
             self.messages = [
                 {
                     "role": "system",
-                    "content": system_prompt.format(instruction = question)
+                    "content": system_prompt.format(instruction=question),
                 },
                 {
                     "role": "user",
                     "content": "Is there anything you need help with today?",
-                }]
+                },
+            ]
 
         response = self.client.chat.completions.create(
             messages=self.messages,
@@ -143,21 +150,17 @@ class APIUSER():
             top_p=self.top_p,
         )
         response = response.choices[0].message.content
-        message = {"role":"system",
-                   "content":response}
+        message = {"role": "system", "content": response}
         self.messages.append(message)
         return response
 
-    
     def step(self, message):
         message = remove_prefix(message)
         self.messages.append({"role": "user", "content": message})
 
-
     def respond(self) -> None:
-
         current_message = {}
-        
+
         response = self.client.chat.completions.create(
             messages=self.messages,
             model=self.model_name,
@@ -168,6 +171,10 @@ class APIUSER():
         response = response.choices[0].message.content
         self.messages.append({"role": "system", "content": response})
 
-        current_message = {"sender":"user", "recipient": "agent", "message": response}
+        current_message = {
+            "sender": "user",
+            "recipient": "agent",
+            "message": response,
+        }
 
         return current_message

@@ -6,5 +6,5 @@ protobuf==5.29.3
 python-dotenv==1.0.1
 tqdm==4.67.1
 urllib3==2.3.0
-vllm==0.6.1.post1
+vllm
 wcwidth==0.2.13

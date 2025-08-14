@@ -1,13 +1,17 @@
+import ast
 
 from model_inference.multi_turn.multi_turn_utils import *
 
-import ast
 
-
-class EXECUTION():
-
-    def __init__(self,agent_model_name, initial_config, involved_classes, test_id, language) -> None:
-
+class EXECUTION:
+    def __init__(
+        self,
+        agent_model_name,
+        initial_config,
+        involved_classes,
+        test_id,
+        language,
+    ) -> None:
         self.agent_model_name = agent_model_name
         self.initial_config = initial_config
         self.involved_classes = involved_classes
@@ -27,20 +31,19 @@ class EXECUTION():
 
     def ast_parse(self, input_str, language="Python"):
         if language == "Python":
-            cleaned_input = input_str.strip("[]'") 
+            cleaned_input = input_str.strip("[]'")
             parsed = ast.parse(cleaned_input, mode="eval")
             extracted = []
-            
-          
+
             if isinstance(parsed.body, ast.Call):
                 extracted.append(self.resolve_ast_call(parsed.body))
-            elif isinstance(parsed.body, (ast.Tuple, ast.List)): 
+            elif isinstance(parsed.body, (ast.Tuple, ast.List)):
                 for elem in parsed.body.elts:
                     if isinstance(elem, ast.Call):
                         extracted.append(self.resolve_ast_call(elem))
             return extracted
-        
-    def resolve_ast_call(self,elem):
+
+    def resolve_ast_call(self, elem):
         # Handle nested attributes for deeply nested module paths
         func_parts = []
         func_part = elem.func
@@ -56,8 +59,7 @@ class EXECUTION():
             args_dict[arg.arg] = output
         return {func_name: args_dict}
 
-
-    def resolve_ast_by_type(self,value):
+    def resolve_ast_by_type(self, value):
         if isinstance(value, ast.Constant):
             if value.value is Ellipsis:
                 output = "..."
@@ -97,33 +99,36 @@ class EXECUTION():
             try:
                 output = ast.unparse(value.body[0].value)
             except:
-                output = ast.unparse(value.value) + "[" + ast.unparse(value.slice) + "]"
+                output = (
+                    ast.unparse(value.value)
+                    + "["
+                    + ast.unparse(value.slice)
+                    + "]"
+                )
         else:
             raise Exception(f"Unsupported AST type: {type(value)}")
         return output
-    
-    
-    def decoded_output_to_execution_list(self,decoded_output):
 
+    def decoded_output_to_execution_list(self, decoded_output):
         execution_list = []
         for function_call in decoded_output:
             for key, value in function_call.items():
                 args_str = ", ".join(
-                    f"{k}={self.parse_nested_value(v)}" for k, v in value.items()
+                    f"{k}={self.parse_nested_value(v)}"
+                    for k, v in value.items()
                 )
                 execution_list.append(f"{key}({args_str})")
         return execution_list
-    
-    def parse_nested_value(self,value):
 
+    def parse_nested_value(self, value):
         if isinstance(value, dict):
             func_name = list(value.keys())[0]
             args = value[func_name]
-            args_str = ", ".join(f"{k}={self.parse_nested_value(v)}" for k, v in args.items())
+            args_str = ", ".join(
+                f"{k}={self.parse_nested_value(v)}" for k, v in args.items()
+            )
             return f"{func_name}({args_str})"
         return repr(value)
-
-
 
     def respond(self, history) -> None:
         current_message = {}
@@ -131,13 +136,15 @@ class EXECUTION():
 
         function_call_list = self.decode_function_list(message)
 
-        single_turn_execution_results, result_instances = execute_agent_func_call(
-            func_call_list=function_call_list,
-            initial_config=self.initial_config,
-            involved_classes=self.involved_classes,
-            model_name=self.agent_model_name,
-            test_entry_id=self.test_id,
-            language=self.language
+        single_turn_execution_results, result_instances = (
+            execute_agent_func_call(
+                func_call_list=function_call_list,
+                initial_config=self.initial_config,
+                involved_classes=self.involved_classes,
+                model_name=self.agent_model_name,
+                test_entry_id=self.test_id,
+                language=self.language,
+            )
         )
 
         parsed_results = []
@@ -145,7 +152,7 @@ class EXECUTION():
             try:
                 parsed_item = json.loads(item)
                 parsed_results.append(parsed_item)
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 parsed_results.append(item)
 
         current_message["sender"] = "execution"

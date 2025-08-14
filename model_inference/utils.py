@@ -1,10 +1,10 @@
-import ast, json
+import ast
+import json
 
 
-
-def decode_ast(model_name, result,language="Python"):
+def decode_ast(model_name, result, language="Python"):
     if "FC" not in model_name:
-        decoded_output = ast_parse(result,language)
+        decoded_output = ast_parse(result, language)
     else:
         decoded_output = []
         for invoked_function in result:
@@ -92,9 +92,9 @@ def resolve_ast_by_type(value):
         try:
             output = ast.unparse(value.body[0].value)
         except:
-            output = ast.unparse(value.value) + "[" + ast.unparse(value.slice) + "]"
+            output = (
+                ast.unparse(value.value) + "[" + ast.unparse(value.slice) + "]"
+            )
     else:
         raise Exception(f"Unsupported AST type: {type(value)}")
     return output
-
-

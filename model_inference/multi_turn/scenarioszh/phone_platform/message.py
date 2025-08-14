@@ -1,7 +1,9 @@
-
-from typing import Dict, List, Union
 from datetime import datetime
-from model_inference.multi_turn.scenarioszh.phone_platform.base_api import BaseApi
+from typing import Dict, List, Union
+
+from model_inference.multi_turn.scenarioszh.phone_platform.base_api import (
+    BaseApi,
+)
 
 
 class MessageApi(BaseApi):
@@ -49,7 +51,6 @@ class MessageApi(BaseApi):
             },
         }
 
-        
         # 设置六个用户之间的短信记录
         self.inbox: Dict[int, Dict[str, Union[str, int]]] = {
             1: {
@@ -91,15 +92,15 @@ class MessageApi(BaseApi):
         }
 
         self.message_id_counter: int = 6
-    
 
     def _load_scenario(self, scenario: dict, long_context=False) -> None:
-
         self.wifi = scenario.get("wifi", False)
-        self.logged_in = scenario.get("logged_in",True)
+        self.logged_in = scenario.get("logged_in", True)
 
-     # 发送短信
-    def send_message(self, sender_name: str, receiver_name: str, message: str) -> Dict[str, Union[bool, str]]:
+    # 发送短信
+    def send_message(
+        self, sender_name: str, receiver_name: str, message: str
+    ) -> Dict[str, Union[bool, str]]:
         """
         发送短信并添加到短信记录中。
         Args:
@@ -111,15 +112,21 @@ class MessageApi(BaseApi):
         """
         if self.logged_in == False:
             return {"status": False, "message": "device未登录，无法发送短信"}
-        
+
         if self.wifi == False:
             return {"status": False, "message": "wifi关闭，此时不能发送信息"}
 
         if len(self.inbox) >= self.max_capacity:
-            return {"status": False, "message": "内存容量不够了，你需要询问user删除哪一条短信。"}
-            
+            return {
+                "status": False,
+                "message": "内存容量不够了，你需要询问user删除哪一条短信。",
+            }
+
         # 验证发送者和接收者是否存在
-        if sender_name not in self.user_list or receiver_name not in self.user_list:
+        if (
+            sender_name not in self.user_list
+            or receiver_name not in self.user_list
+        ):
             return {"status": False, "message": "发送者或接收者不存在"}
 
         sender_id = self.user_list[sender_name]["user_id"]
@@ -132,7 +139,6 @@ class MessageApi(BaseApi):
             "receiver_id": receiver_id,
             "message": message,
         }
-
 
         return {"status": True, "message": f"短信成功发送给{receiver_name}。"}
 
@@ -153,8 +159,9 @@ class MessageApi(BaseApi):
         del self.inbox[message_id]
         return {"status": True, "message": f"短信ID {message_id} 已成功删除。"}
 
-
-    def view_messages_between_users(self, sender_name: str, receiver_name: str) -> Dict[str, Union[bool, str, List[Dict[str, str]]]]:
+    def view_messages_between_users(
+        self, sender_name: str, receiver_name: str
+    ) -> Dict[str, Union[bool, str, List[Dict[str, str]]]]:
         """
         查看A用户发送给B用户的所有短信。
         Args:
@@ -164,11 +171,14 @@ class MessageApi(BaseApi):
             Dict[str, Union[bool, str, List[Dict[str, str]]]]: 包含发送者和接收者之间的短信列表。
         """
         if self.logged_in == False:
-            return {"status": False, "message": "device未登录，无法查看短信信息"}
-        
+            return {
+                "status": False,
+                "message": "device未登录，无法查看短信信息",
+            }
+
         if sender_name not in self.user_list:
             return {"status": False, "message": "发送者不存在"}
-        
+
         if receiver_name not in self.user_list:
             return {"status": False, "message": "接收者不存在"}
 
@@ -178,21 +188,27 @@ class MessageApi(BaseApi):
 
         # 遍历 inbox，找出 sender_id 发送给 receiver_id 的短信
         for msg_id, msg_data in self.inbox.items():
-            if msg_data["sender_id"] == sender_id and msg_data["receiver_id"] == receiver_id:
-                messages_between_users.append({
-                    "id": msg_id,
-                    "sender": sender_name,
-                    "receiver": receiver_name,
-                    "message": msg_data["message"]
-                })
+            if (
+                msg_data["sender_id"] == sender_id
+                and msg_data["receiver_id"] == receiver_id
+            ):
+                messages_between_users.append(
+                    {
+                        "id": msg_id,
+                        "sender": sender_name,
+                        "receiver": receiver_name,
+                        "message": msg_data["message"],
+                    }
+                )
 
         if not messages_between_users:
             return {"status": False, "message": "没有找到相关的短信记录"}
 
         return {"status": True, "messages": messages_between_users}
 
-
-    def search_messages(self, user_name: str, keyword: str) -> Dict[str, Union[str, List[Dict[str, str]]]]:
+    def search_messages(
+        self, user_name: str, keyword: str
+    ) -> Dict[str, Union[str, List[Dict[str, str]]]]:
         """
         根据关键词搜索用户的短信，包括发送和接收的。
         Args:
@@ -209,19 +225,24 @@ class MessageApi(BaseApi):
 
         # 遍历 inbox，找到发送或接收中包含关键词的消息
         for msg_id, msg_data in self.inbox.items():
-            if (msg_data["sender_id"] == user_id or msg_data["receiver_id"] == user_id) and keyword.lower() in msg_data["message"].lower():
-                matched_messages.append({
-                    "id":msg_id,
-                    "sender_id": msg_data["sender_id"],
-                    "receiver_id": msg_data["receiver_id"],
-                    "message": msg_data["message"]
-                })
+            if (
+                msg_data["sender_id"] == user_id
+                or msg_data["receiver_id"] == user_id
+            ) and keyword.lower() in msg_data["message"].lower():
+                matched_messages.append(
+                    {
+                        "id": msg_id,
+                        "sender_id": msg_data["sender_id"],
+                        "receiver_id": msg_data["receiver_id"],
+                        "message": msg_data["message"],
+                    }
+                )
 
         if not matched_messages:
             return {"status": False, "message": "没有找到包含关键词的短信"}
 
         return {"status": True, "messages": matched_messages}
-    
+
     def get_all_message_times_with_ids(self) -> Dict[int, str]:
         """
         获取所有短信的时间以及对应的短信编号。
@@ -229,8 +250,13 @@ class MessageApi(BaseApi):
             Dict[int, str]: 包含所有短信编号和时间的字典，键为短信编号，值为时间。
         """
         if self.logged_in == False:
-            return {"status": False, "message": "device未登录，获取所有短信的时间以及对应的短信编号。"}
-        message_times_with_ids = {msg_id: msg_data["time"] for msg_id, msg_data in self.inbox.items()}
+            return {
+                "status": False,
+                "message": "device未登录，获取所有短信的时间以及对应的短信编号。",
+            }
+        message_times_with_ids = {
+            msg_id: msg_data["time"] for msg_id, msg_data in self.inbox.items()
+        }
         return message_times_with_ids
 
     def get_latest_message_id(self) -> Dict[str, Union[bool, str, int]]:
@@ -240,7 +266,10 @@ class MessageApi(BaseApi):
             Dict[str, Union[bool, str, int]]: 包含最新短信ID的字典。
         """
         if self.logged_in == False:
-            return {"status": False, "message": "device未登录，无法获取最新发送的短信ID。"}
+            return {
+                "status": False,
+                "message": "device未登录，无法获取最新发送的短信ID。",
+            }
         if not self.inbox:
             return {"status": False, "message": "短信记录为空"}
 
@@ -249,13 +278,16 @@ class MessageApi(BaseApi):
         latest_time = None
 
         for message_id, message_data in self.inbox.items():
-            message_time = datetime.strptime(message_data['time'], "%Y-%m-%d")
+            message_time = datetime.strptime(message_data["time"], "%Y-%m-%d")
             if latest_time is None or message_time > latest_time:
                 latest_time = message_time
                 latest_message_id = message_id
 
-        return {"status": True, "message": f"最新的短信ID是 {latest_message_id}", "message_id": latest_message_id}
-
+        return {
+            "status": True,
+            "message": f"最新的短信ID是 {latest_message_id}",
+            "message_id": latest_message_id,
+        }
 
     def get_earliest_message_id(self) -> Dict[str, Union[bool, str, int]]:
         """
@@ -264,7 +296,10 @@ class MessageApi(BaseApi):
             Dict[str, Union[bool, str, int]]: 包含最早短信ID的字典。
         """
         if self.logged_in == False:
-            return {"status": False, "message": "device未登录，无法获取最早发送的短信ID"}
+            return {
+                "status": False,
+                "message": "device未登录，无法获取最早发送的短信ID",
+            }
         if not self.inbox:
             return {"status": False, "message": "短信记录为空"}
 
@@ -273,12 +308,13 @@ class MessageApi(BaseApi):
         earliest_time = None
 
         for message_id, message_data in self.inbox.items():
-            message_time = datetime.strptime(message_data['time'], "%Y-%m-%d")
+            message_time = datetime.strptime(message_data["time"], "%Y-%m-%d")
             if earliest_time is None or message_time < earliest_time:
                 earliest_time = message_time
                 earliest_message_id = message_id
 
-        return {"status": True, "message": f"最早的短信ID是 {earliest_message_id}", "message_id": earliest_message_id}
-
-
-
+        return {
+            "status": True,
+            "message": f"最早的短信ID是 {earliest_message_id}",
+            "message_id": earliest_message_id,
+        }

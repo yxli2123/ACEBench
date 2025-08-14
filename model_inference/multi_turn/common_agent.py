@@ -1,9 +1,8 @@
-
-import re 
 import ast
-from model_inference.prompt_en import TRAVEL_PROMPT_EN, BASE_PROMPT_EN
-from model_inference.prompt_zh import TRAVEL_PROMPT_ZH, BASE_PROMPT_ZH
+import re
 
+from model_inference.prompt_en import BASE_PROMPT_EN, TRAVEL_PROMPT_EN
+from model_inference.prompt_zh import BASE_PROMPT_ZH, TRAVEL_PROMPT_ZH
 
 MULTI_TURN_AGENT_PROMPT_SYSTEM_ZH = """你是一个AI系统，你的角色为system，请根据给定的API说明和对话历史1..t，为角色system生成在步骤t+1中生成相应的内容。
 1 如果上一步提供的信息完整，能够正常进行api的调用，你应该调用的API请求，API请求以[ApiName(key1='value1', key2='value2', ...)]的格式输出,不要在输出中输出任何其他解释或提示或API调用的结果。
@@ -20,7 +19,9 @@ execution: 执行api调用并返回结果
 你需要遵循的规则如下：\n
 """
 
-MULTI_TURN_AGENT_PROMPT_USER_ZH = """下面是你可使用的api列表:\n {functions}\n\n对话历史1..t:\n{history}"""
+MULTI_TURN_AGENT_PROMPT_USER_ZH = (
+    """下面是你可使用的api列表:\n {functions}\n\n对话历史1..t:\n{history}"""
+)
 
 MULTI_TURN_AGENT_PROMPT_SYSTEM_EN = """You are an AI system with the role name "system." Based on the provided API specifications and conversation history from steps 1 to t, generate the appropriate content for step t+1 for the "system" role.
 1. If the information provided in the previous step is complete and the API call can be executed normally, you should generate the API request. The API request should be output in the format [ApiName(key1='value1', key2='value2', ...)]. Do not include any other explanations, prompts, or API call results in the output.
@@ -41,11 +42,19 @@ The rules you need to follow are as follows:\n
 MULTI_TURN_AGENT_PROMPT_USER_EN = """Below is the list of APIs you can use:\n {functions}\n\nConversation history 1..t:\n{history}"""
 
 
-
 class CommonAgent(object):
-
-    def __init__(self, model, time, functions, involved_class, temperature=0.001, top_p=1, max_tokens=1000, language = "zh") -> None:
-        self.model = model  
+    def __init__(
+        self,
+        model,
+        time,
+        functions,
+        involved_class,
+        temperature=0.001,
+        top_p=1,
+        max_tokens=1000,
+        language="zh",
+    ) -> None:
+        self.model = model
         self.temperature = temperature
         self.top_p = top_p
         self.max_tokens = max_tokens
@@ -54,7 +63,6 @@ class CommonAgent(object):
         self.involved_class = involved_class
         self.language = language
 
-    
     def decode_function_list(self, result):
         func = result
         if " " == func[0]:
@@ -68,22 +76,21 @@ class CommonAgent(object):
 
     def ast_parse(self, input_str, language="Python"):
         if language == "Python":
-            cleaned_input = input_str.strip("[]'")  
+            cleaned_input = input_str.strip("[]'")
             parsed = ast.parse(cleaned_input, mode="eval")
             extracted = []
-            
-            
+
             if isinstance(parsed.body, ast.Call):
                 extracted.append(self.resolve_ast_call(parsed.body))
-            elif isinstance(parsed.body, (ast.Tuple, ast.List)):  
+            elif isinstance(parsed.body, (ast.Tuple, ast.List)):
                 for elem in parsed.body.elts:
                     if isinstance(elem, ast.Call):
                         extracted.append(self.resolve_ast_call(elem))
                     else:
                         return False
             return extracted
-        
-    def resolve_ast_call(self,elem):
+
+    def resolve_ast_call(self, elem):
         # Handle nested attributes for deeply nested module paths
         func_parts = []
         func_part = elem.func
@@ -99,8 +106,7 @@ class CommonAgent(object):
             args_dict[arg.arg] = output
         return {func_name: args_dict}
 
-
-    def resolve_ast_by_type(self,value):
+    def resolve_ast_by_type(self, value):
         if isinstance(value, ast.Constant):
             if value.value is Ellipsis:
                 output = "..."
@@ -140,45 +146,53 @@ class CommonAgent(object):
             try:
                 output = ast.unparse(value.body[0].value)
             except:
-                output = ast.unparse(value.value) + "[" + ast.unparse(value.slice) + "]"
+                output = (
+                    ast.unparse(value.value)
+                    + "["
+                    + ast.unparse(value.slice)
+                    + "]"
+                )
         else:
             raise Exception(f"Unsupported AST type: {type(value)}")
         return output
-    
-    
-    def decoded_output_to_execution_list(self,decoded_output):
 
+    def decoded_output_to_execution_list(self, decoded_output):
         execution_list = []
         for function_call in decoded_output:
             for key, value in function_call.items():
                 args_str = ", ".join(
-                    f"{k}={self.parse_nested_value(v)}" for k, v in value.items()
+                    f"{k}={self.parse_nested_value(v)}"
+                    for k, v in value.items()
                 )
                 execution_list.append(f"{key}({args_str})")
         return execution_list
-    
-    def parse_nested_value(self,value):
 
+    def parse_nested_value(self, value):
         if isinstance(value, dict):
             func_name = list(value.keys())[0]
             args = value[func_name]
-            args_str = ", ".join(f"{k}={self.parse_nested_value(v)}" for k, v in args.items())
+            args_str = ", ".join(
+                f"{k}={self.parse_nested_value(v)}" for k, v in args.items()
+            )
             return f"{func_name}({args_str})"
         return repr(value)
-
 
     def respond(self, history) -> None:
         current_message = {}
         if self.language == "zh":
             system_prompt = MULTI_TURN_AGENT_PROMPT_SYSTEM_ZH
-            user_prompt = MULTI_TURN_AGENT_PROMPT_USER_ZH.format(functions = self.functions, history = history)
+            user_prompt = MULTI_TURN_AGENT_PROMPT_USER_ZH.format(
+                functions=self.functions, history=history
+            )
             if "Travel" in self.involved_class:
                 system_prompt += TRAVEL_PROMPT_ZH
             if "BaseApi" in self.involved_class:
                 system_prompt += BASE_PROMPT_ZH
         elif self.language == "en":
             system_prompt = MULTI_TURN_AGENT_PROMPT_SYSTEM_EN
-            user_prompt = MULTI_TURN_AGENT_PROMPT_USER_EN.format(functions = self.functions, history = history)
+            user_prompt = MULTI_TURN_AGENT_PROMPT_USER_EN.format(
+                functions=self.functions, history=history
+            )
             if "Travel" in self.involved_class:
                 system_prompt += TRAVEL_PROMPT_EN
             if "BaseApi" in self.involved_class:
@@ -196,7 +210,7 @@ class CommonAgent(object):
                 self.decode_function_list(response)
                 current_message["recipient"] = "execution"
                 current_message["message"] = response
-            except Exception as e:
+            except Exception:
                 current_message["recipient"] = "user"
                 current_message["message"] = response
         else:

@@ -1,53 +1,135 @@
-
-import argparse, json, os
-from tqdm import tqdm
-from model_inference.inference_map import inference_map
-from category import ACE_DATA_CATEGORY
+import argparse
+import json
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
+from tqdm import tqdm
+
+from category import ACE_DATA_CATEGORY
+from model_inference.inference_map import inference_map
+
+# Directory of the ACEBench
+PACKAGE_ROOT = Path(__file__).resolve().parents[0]
+PROJECT_ROOT = os.getenv("PROJECT_ROOT", Path(__file__).resolve().parents[0])
 
 
-def get_args():
-
-    parser = argparse.ArgumentParser()
+def parser():
+    parser = argparse.ArgumentParser(description="Generate ACEBench Results.")
     # Model name
-    parser.add_argument("--model", type=str, default="gpt-4o", nargs="+", help="Name of the model(s) to use")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="gpt-4o",
+        nargs="+",
+        help="Name of the model(s) to use",
+    )
 
     # For local models, specify the model path
-    parser.add_argument("--model-path", type=str, help="Path to the model for local models")
+    parser.add_argument(
+        "--model-path", type=str, help="Path to the model for local models"
+    )
 
     # Category of the model you want to test, default is "all"
-    parser.add_argument("--category", type=str, default="test_all", nargs="+", help="Category of the model you want to test")
+    parser.add_argument(
+        "--category",
+        type=str,
+        default="test_all",
+        nargs="+",
+        help="Category of the model you want to test",
+    )
+
+    parser.add_argument(
+        "--eval-root-dir",
+        type=str,
+        help="Root directory of the evaluation data. It stores the generated result files, dialogue log files, and score files.",
+    )
 
     # Temperature parameter to control randomness of model output, default is 0.7
-    parser.add_argument("--temperature", type=float, default=0.7, help="Temperature parameter to control randomness of model output")
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.7,
+        help="Temperature parameter to control randomness of model output",
+    )
     # Top-p parameter to control diversity of model output, default is 1
-    parser.add_argument("--top-p", type=float, default=1, help="Top-p parameter to control diversity of model output")
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        default=0.95,
+        help="Top-p parameter to control diversity of model output",
+    )
     # Maximum number of tokens to generate, default is 1200
-    parser.add_argument("--max-tokens", type=int, default=1200, help="Maximum number of tokens to generate")
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=4000,
+        help="Maximum number of tokens to generate",
+    )
     # Number of GPUs to use, default is 1
-    parser.add_argument("--num-gpus", default=1, type=int, help="Number of GPUs to use")
+    parser.add_argument(
+        "--num-gpus", default=1, type=int, help="Number of GPUs to use"
+    )
     # GPU memory utilization rate, default is 0.9
-    parser.add_argument("--gpu-memory-utilization", default=0.9, type=float, help="GPU memory utilization rate")
+    parser.add_argument(
+        "--gpu-memory-utilization",
+        default=0.9,
+        type=float,
+        help="GPU memory utilization rate",
+    )
     # Language for model output, choose 'en' for English or 'zh' for Chinese
-    parser.add_argument("--language", type=str, default="en", choices=["en", "zh"], help="Language for model output, choose 'en' for English or 'zh' for Chinese")
+    parser.add_argument(
+        "--language",
+        type=str,
+        default="en",
+        choices=["en", "zh"],
+        help="Language for model output, choose 'en' for English or 'zh' for Chinese",
+    )
     # Number of threads to use for concurrency, default is 1
-    parser.add_argument("--num-threads", type=int, default=1, help="Number of threads to use for concurrency")
+    parser.add_argument(
+        "--num-threads",
+        type=int,
+        default=1,
+        help="Number of threads to use for concurrency",
+    )
     # Maximum number of dialog turns allowed for agent interactions
-    parser.add_argument("--max-dialog-turns", type=int, default=40, help="Maximum number of dialog turns allowed for agent interactions")
+    parser.add_argument(
+        "--max-dialog-turns",
+        type=int,
+        default=40,
+        help="Maximum number of dialog turns allowed for agent interactions",
+    )
     # Model used by the user role in the agent, it is recommended to use an advanced large model
-    parser.add_argument("--user-model", type=str, default="gpt-4o", help="Model used by the user role in the agent")
+    parser.add_argument(
+        "--user-model",
+        type=str,
+        default="gpt-4o-mini-2024-07-18",
+        help="Model used by the user role in the agent",
+    )
+    parser.add_argument(
+        "--enable-think",
+        action="store_ture",
+        help="Enable thinking in the system prompt.",
+    )
+    parser.add_argument(
+        "--tensor-parallel-size",
+        type=int,
+        default=1,
+        help="Tensor parallel size.",
+    )
+    parser.add_argument("--result-dir", type=str, help="result directory")
+
     args = parser.parse_args()
     return args
 
 
-
 def load_test_cases(base_path, filenames):
     cases = []
-    
+
     for filename in filenames:
         file_path = os.path.join(base_path, filename)
         try:
-            with open(file_path, 'r', encoding='utf-8') as file:
+            with open(file_path, "r", encoding="utf-8") as file:
                 cases.extend(json.loads(line) for line in file)
         except FileNotFoundError:
             print(f"Error: File not found - {file_path}")
@@ -58,72 +140,88 @@ def load_test_cases(base_path, filenames):
 
 def sort_json(file):
     data = []
-    with open(file,'r', encoding='utf-8') as f:
+    with open(file, "r", encoding="utf-8") as f:
         for line in f:
             data.append(json.loads(line))
     if "multi_turn" in file and "agent" not in file:
-        data = sorted(data, key=lambda x: tuple(map(int, x["id"].split("_")[-2:])))
+        data = sorted(
+            data, key=lambda x: tuple(map(int, x["id"].split("_")[-2:]))
+        )
     else:
         data = sorted(data, key=lambda x: int(x["id"].split("_")[-1]))
-    with open(file, 'w', encoding='utf-8') as f:
+    with open(file, "w", encoding="utf-8") as f:
         for entry in data:
             json.dump(entry, f, ensure_ascii=False)
-            f.write('\n')  
+            f.write("\n")
+
 
 def generate_singal(args, model_name, test_case):
-    model_path = args.model_path 
+    model_path = args.model_path
     result_path = args.result_path
-    model_inference = inference_map[model_name](model_name, model_path, args.temperature, args.top_p, args.max_tokens, args.max_dialog_turns, args.user_model, args.language)
+    model_inference = inference_map[model_name](
+        model_name=model_name,
+        model_path=model_path,
+        temperature=args.temperature,
+        top_p=args.top_p,
+        max_tokens=args.max_tokens,
+        max_dialog_turns=args.max_dialog_turns,
+        user_model=args.user_model,
+        language=args.language,
+        enable_think=args.enable_think,
+        tensor_parallel_size=args.tensor_parallel_size,
+    )
 
     if "agent" in test_case["id"]:
         id, question, functions = (
-                    test_case["id"],
-                    test_case["question"],
-                    test_case["function"],
-                )
+            test_case["id"],
+            test_case["question"],
+            test_case["function"],
+        )
         if isinstance(functions, (dict, str)):
             functions = [functions]
         time = ""
         profile = ""
-        result, process_list = model_inference.inference(question, functions, time, profile,test_case, id)
-        result_to_write = {
-            "id": id,
-            "result": result,
-            "process": process_list
-        }
+        result, process_list = model_inference.inference(
+            question, functions, time, profile, test_case, id
+        )
+        result_to_write = {"id": id, "result": result, "process": process_list}
         model_inference.write_result(result_to_write, model_name, result_path)
 
     elif "preference" in test_case["id"]:
         id, question, functions, profile = (
-                    test_case["id"],
-                    test_case["question"],
-                    test_case["function"],
-                    test_case["profile"],
-                )
+            test_case["id"],
+            test_case["question"],
+            test_case["function"],
+            test_case["profile"],
+        )
         time = ""
         if isinstance(functions, (dict, str)):
             functions = [functions]
 
-        result = model_inference.inference(question, functions, time, profile, test_case, id)
+        result = model_inference.inference(
+            question, functions, time, profile, test_case, id
+        )
 
         result_to_write = {
             "id": id,
             "result": result,
         }
         model_inference.write_result(result_to_write, model_name, result_path)
-    
+
     else:
         id, question, functions, time = (
-                    test_case["id"],
-                    test_case["question"],
-                    test_case["function"],
-                    test_case["time"],
-                )
+            test_case["id"],
+            test_case["question"],
+            test_case["function"],
+            test_case["time"],
+        )
         profile = ""
         if isinstance(functions, (dict, str)):
             functions = [functions]
 
-        result = model_inference.inference(question, functions, time, profile, test_case, id)
+        result = model_inference.inference(
+            question, functions, time, profile, test_case, id
+        )
 
         result_to_write = {
             "id": id,
@@ -131,15 +229,20 @@ def generate_singal(args, model_name, test_case):
         }
         model_inference.write_result(result_to_write, model_name, result_path)
 
+
 def generate_results(args, model_name, test_case, completed_id_set):
-    with ThreadPoolExecutor(max_workers = args.num_threads) as executor:
+    with ThreadPoolExecutor(max_workers=args.num_threads) as executor:
         futures = []
         for test_case in test_cases_total:
             if test_case["id"] not in completed_id_set:
-                future = executor.submit(generate_singal, args, model_name, test_case)
+                future = executor.submit(
+                    generate_singal, args, model_name, test_case
+                )
                 futures.append(future)
 
-        with tqdm(total=len(futures), desc="Processing Tasks", leave=True) as pbar:
+        with tqdm(
+            total=len(futures), desc="Processing Tasks", leave=True
+        ) as pbar:
             for future in as_completed(futures):
                 try:
                     result = future.result()  # Catch exceptions in tasks
@@ -151,22 +254,25 @@ def generate_results(args, model_name, test_case, completed_id_set):
         print("All tasks have been completed.")
 
 
-
- 
-if __name__ == "__main__":
-
-
-    args = get_args()
+def main():
+    args = parser()
 
     if type(args.model) is not list:
         args.model = [args.model]
     if type(args.category) is not list:
         args.category = [args.category]
 
-    
+    project_root = os.getenv("PROJECT_ROOT", "./")
+
     paths = {
-        "zh": {"data_path": "./data_all/data_zh/", "result_path": "./result_all/result_zh/"},
-        "en": {"data_path": "./data_all/data_en/", "result_path": "./result_all/result_en/"},
+        "zh": {
+            "data_path": "./data_all/data_zh/",
+            "result_path": "./result_all/result_zh/",
+        },
+        "en": {
+            "data_path": "./data_all/data_en/",
+            "result_path": "./result_all/result_en/",
+        },
     }
 
     data_path = paths[args.language]["data_path"]
@@ -174,7 +280,11 @@ if __name__ == "__main__":
     args.result_path = result_path
 
     # Get the filenames of the test cases
-    test_names = {test_name for category in args.category for test_name in ACE_DATA_CATEGORY[category]}
+    test_names = {
+        test_name
+        for category in args.category
+        for test_name in ACE_DATA_CATEGORY[category]
+    }
     test_files = [f"data_{test_name}.json" for test_name in test_names]
 
     for model_name in args.model:
@@ -188,7 +298,7 @@ if __name__ == "__main__":
             file_name = f"data_{file}_result.json"
             file_path = os.path.join(folder_path, file_name)
             if os.path.exists(file_path):
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     for line in f:
                         line_data = json.loads(line)
                         completed_id_set.add(line_data["id"])
@@ -196,10 +306,16 @@ if __name__ == "__main__":
         test_cases_total = load_test_cases(data_path, test_files)
 
         if len(test_cases_total) > 0:
-            generate_results(args, model_name, test_cases_total, completed_id_set)
-        
+            generate_results(
+                args, model_name, test_cases_total, completed_id_set
+            )
+
         # Multithreading may disrupt the order of execution, so the result ids need to be reordered
         for file in test_names:
             file_name = f"data_{file}_result.json"
             file_path = os.path.join(folder_path, file_name)
             sort_json(file_path)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,7 +1,10 @@
-
-from typing import Dict, List, Union
 from datetime import datetime
-from model_inference.multi_turn.scenariosen.phone_platform.base_api import BaseApi
+from typing import Dict, List, Union
+
+from model_inference.multi_turn.scenariosen.phone_platform.base_api import (
+    BaseApi,
+)
+
 
 class ReminderApi(BaseApi):
     """
@@ -12,8 +15,10 @@ class ReminderApi(BaseApi):
         """
         Initialize the ReminderAPI with some predefined reminders.
         """
-        self.max_capacity = 6  
-        self.reminder_list: Dict[int, Dict[str, Union[str, bool, datetime]]] = {
+        self.max_capacity = 6
+        self.reminder_list: Dict[
+            int, Dict[str, Union[str, bool, datetime]]
+        ] = {
             1: {
                 "reminder_id": 1001,
                 "title": "Doctor's Appointment",
@@ -37,12 +42,10 @@ class ReminderApi(BaseApi):
             },
         }
         self.reminder_id_counter: int = 3
-    
 
     def _load_scenario(self, scenario: dict, long_context=False) -> None:
-
         self.wifi = scenario.get("wifi", False)
-        self.logged_in = scenario.get("logged_in",True)
+        self.logged_in = scenario.get("logged_in", True)
 
     def _check_capacity(self) -> bool:
         """
@@ -51,8 +54,10 @@ class ReminderApi(BaseApi):
             bool: Returns True if capacity is full, False otherwise.
         """
         return len(self.reminder_list) >= self.max_capacity
-    
-    def view_reminder_by_title(self, title: str) -> Dict[str, Union[str, bool, Dict[str, Union[str, bool, datetime]]]]:
+
+    def view_reminder_by_title(
+        self, title: str
+    ) -> Dict[str, Union[str, bool, Dict[str, Union[str, bool, datetime]]]]:
         """
         View a specific reminder by its title.
         Args:
@@ -61,15 +66,22 @@ class ReminderApi(BaseApi):
             Dict[str, Union[str, bool, Dict]]: A dictionary containing the search status and reminder details.
         """
         if self.logged_in == False:
-            return {"status": False, "message": "The device is not logged in, so you cannot view notifications"}
+            return {
+                "status": False,
+                "message": "The device is not logged in, so you cannot view notifications",
+            }
         for reminder_id, reminder in self.reminder_list.items():
             if reminder["title"] == title:
                 return {"status": True, "reminder": reminder}
-        
-        return {"status": False, "message": f"No reminder found with the title '{title}'."}
 
+        return {
+            "status": False,
+            "message": f"No reminder found with the title '{title}'.",
+        }
 
-    def add_reminder(self, title: str, description: str, time: datetime) -> Dict[str, Union[bool, str]]:
+    def add_reminder(
+        self, title: str, description: str, time: datetime
+    ) -> Dict[str, Union[bool, str]]:
         """
         Add a new reminder.
         Args:
@@ -81,10 +93,15 @@ class ReminderApi(BaseApi):
         """
 
         if self.logged_in == False:
-            return {"status": False, "message": "Device not logged in. Unable to add a new reminder."}
+            return {
+                "status": False,
+                "message": "Device not logged in. Unable to add a new reminder.",
+            }
         if self._check_capacity():
-            return {"status": False, "message": "Reminder capacity is full. Unable to add a new reminder."}
-
+            return {
+                "status": False,
+                "message": "Reminder capacity is full. Unable to add a new reminder.",
+            }
 
         self.reminder_id_counter += 1
         reminder_id = self.reminder_id_counter
@@ -95,8 +112,10 @@ class ReminderApi(BaseApi):
             "time": time,
             "notified": False,
         }
-        return {"status": True, "message": f"Reminder '{title}' was successfully added."}
-
+        return {
+            "status": True,
+            "message": f"Reminder '{title}' was successfully added.",
+        }
 
     # 2. Delete Reminder
     def delete_reminder(self, reminder_id: int) -> Dict[str, Union[bool, str]]:
@@ -108,15 +127,23 @@ class ReminderApi(BaseApi):
             Dict[str, Union[bool, str]]: A dictionary containing the deletion status and result.
         """
         if self.logged_in == False:
-            return {"status": False, "message": "Device not logged in. Unable to delete the specified reminder."}
+            return {
+                "status": False,
+                "message": "Device not logged in. Unable to delete the specified reminder.",
+            }
         if reminder_id not in self.reminder_list:
             return {"status": False, "message": "Reminder ID does not exist."}
 
         del self.reminder_list[reminder_id]
-        return {"status": True, "message": f"Reminder ID {reminder_id} was successfully deleted."}
+        return {
+            "status": True,
+            "message": f"Reminder ID {reminder_id} was successfully deleted.",
+        }
 
     # 3. View All Reminders
-    def view_all_reminders(self) -> Dict[str, Union[bool, List[Dict[str, Union[str, datetime, bool]]]]]:
+    def view_all_reminders(
+        self,
+    ) -> Dict[str, Union[bool, List[Dict[str, Union[str, datetime, bool]]]]]:
         """
         Views all reminders.
         Returns:
@@ -127,14 +154,12 @@ class ReminderApi(BaseApi):
 
         reminders = []
         for reminder in self.reminder_list.values():
-            reminders.append({
-                "title": reminder["title"],
-                "description": reminder["description"],
-                "time": reminder["time"],
-                "notified": reminder["notified"],
-            })
+            reminders.append(
+                {
+                    "title": reminder["title"],
+                    "description": reminder["description"],
+                    "time": reminder["time"],
+                    "notified": reminder["notified"],
+                }
+            )
         return {"status": True, "reminders": reminders}
-
-
-
- 

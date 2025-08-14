@@ -1,6 +1,5 @@
-from model_inference.common_inference import CommonInference
 from model_inference.apimodel_inference import APIModelInference
-
+from model_inference.common_inference import CommonInference
 
 inference_map_groups = {
     APIModelInference: [
@@ -55,4 +54,8 @@ inference_map_groups = {
 }
 
 
-inference_map = {model: handler for handler, models in inference_map_groups.items() for model in models}
+inference_map = {
+    model: handler
+    for handler, models in inference_map_groups.items()
+    for model in models
+}
