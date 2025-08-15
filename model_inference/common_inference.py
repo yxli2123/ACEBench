@@ -1,7 +1,7 @@
+from typing import Callable, List
+
 from tqdm import tqdm
 
-from model_inference.base_inference import BaseHandler
-from model_inference.model_infer import get_model
 from model_inference.multi_step.common_agent_step import CommonAgent_Step
 from model_inference.multi_step.execution_role_step import EXECUTION_STEP
 from model_inference.multi_step.multi_step_scene import Mulit_Step_Scene
@@ -30,37 +30,18 @@ SAVED_CLASS = {
 }
 
 
-class CommonInference(BaseHandler):
+class InferenceScene:
     def __init__(
         self,
-        model_name,
-        model_path=None,
-        temperature=0.001,
-        top_p=1,
-        max_tokens=1000,
+        question: str,
+        functions: List[Callable],
         max_dialog_turns=40,
-        user_model="gpt-4o",
         language="zh",
-    ) -> None:
-        super().__init__(
-            model_name, model_path, temperature, top_p, max_tokens, language
-        )
-
-        self.model_name = model_name
-        self.model_path = model_path
-        self.max_message_index = max_dialog_turns
+    ):
+        self.question = question
+        self.functions = functions
+        self.max_dialog_turns = max_dialog_turns
         self.language = language
-        self.user_model = user_model
-        self.tokenizer = self.initialize_tokenizer(model_path)
-        self.model = get_model(model_name=model_name, model_path=model_path)
-
-    def initialize_tokenizer(self, model_path):
-        from transformers import AutoTokenizer
-
-        tokenizer = AutoTokenizer.from_pretrained(
-            model_path, trust_remote_code=True
-        )
-        return tokenizer
 
     def inference(self, question, functions, time, profile, test_case, id):
         category = id.rsplit("_", 1)[0]

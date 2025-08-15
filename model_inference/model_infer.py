@@ -1,296 +1,329 @@
-import os
+import json
+import logging
+import re
 import subprocess
-import time
+import sys
+from typing import Any, Dict, List, Optional
 
-import google.generativeai as genai
-from openai import OpenAI
-from vllm import LLM, SamplingParams
+from openai import NOT_GIVEN, OpenAI
+from openai.types.chat import (
+    ChatCompletionMessage,
+    ChatCompletionMessageToolCall,
+)
 
-
-def get_free_gpu(use_gpu_num):
-    # Use nvidia-smi command to get GPU usage information
-    result = subprocess.run(
-        [
-            "nvidia-smi",
-            "--query-gpu=index,memory.free",
-            "--format=csv,noheader,nounits",
-        ],
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    # Parse the output
-    gpu_info = result.stdout.strip().split("\n")
-    free_gpus = [
-        (int(info.split(",")[0]), int(info.split(",")[1])) for info in gpu_info
-    ]
-
-    # Sort by free memory in descending order
-    free_gpus.sort(key=lambda x: x[1], reverse=True)
-
-    # Return GPU IDs with the most free memory
-    return ",".join(str(i[0]) for i in free_gpus[:use_gpu_num])
+logging.basicConfig(level=logging.WARNING)
 
 
-class LLMInfer(object):
-    def __init__(
-        self,
-        model_path,
-        temperature=0.001,
-        top_p=1,
-        max_tokens=1000,
-        language="zh",
-        max_model_len=8192,
-        tensor_parallel_size=1,
-    ) -> None:
-        gpu_ids = get_free_gpu(use_gpu_num=tensor_parallel_size)
-        os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
-        self.sampling_params = SamplingParams(
-            temperature=0.0, max_tokens=1024, top_p=0.9
-        )
-        from transformers import AutoTokenizer
-
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_path, trust_remote_code=True
-        )
-        self.llm = LLM(
-            model=model_path,
-            dtype="float16",
-            trust_remote_code=True,
-            max_model_len=max_model_len,
-            tensor_parallel_size=tensor_parallel_size,
-            gpu_memory_utilization=0.9,
-        )
-
-    def _format_prompt(self, messages):
-        # Qwen is using its prompting mode, not the tool use mode
-        """
-        "chat_template": "{%- if tools %}\n    {{- '<|im_start|>system\\n' }}\n    {%- if messages[0]['role'] == 'system' %}\n        {{- messages[0]['content'] }}\n    {%- else %}\n        {{- 'You are Qwen, created by Alibaba Cloud. You are a helpful assistant.' }}\n    {%- endif %}\n    {{- \"\\n\\n# Tools\\n\\nYou may call one or more functions to assist with the user query.\\n\\nYou are provided with function signatures within <tools></tools> XML tags:\\n<tools>\" }}\n    {%- for tool in tools %}\n        {{- \"\\n\" }}\n        {{- tool | tojson }}\n    {%- endfor %}\n    {{- \"\\n</tools>\\n\\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\\n<tool_call>\\n{\\\"name\\\": <function-name>, \\\"arguments\\\": <args-json-object>}\\n</tool_call><|im_end|>\\n\" }}\n{%- else %}\n    {%- if messages[0]['role'] == 'system' %}\n        {{- '<|im_start|>system\\n' + messages[0]['content'] + '<|im_end|>\\n' }}\n    {%- else %}\n        {{- '<|im_start|>system\\nYou are Qwen, created by Alibaba Cloud. You are a helpful assistant.<|im_end|>\\n' }}\n    {%- endif %}\n{%- endif %}\n{%- for message in messages %}\n    {%- if (message.role == \"user\") or (message.role == \"system\" and not loop.first) or (message.role == \"assistant\" and not message.tool_calls) %}\n        {{- '<|im_start|>' + message.role + '\\n' + message.content + '<|im_end|>' + '\\n' }}\n    {%- elif message.role == \"assistant\" %}\n        {{- '<|im_start|>' + message.role }}\n        {%- if message.content %}\n            {{- '\\n' + message.content }}\n        {%- endif %}\n        {%- for tool_call in message.tool_calls %}\n            {%- if tool_call.function is defined %}\n                {%- set tool_call = tool_call.function %}\n            {%- endif %}\n            {{- '\\n<tool_call>\\n{\"name\": \"' }}\n            {{- tool_call.name }}\n            {{- '\", \"arguments\": ' }}\n            {{- tool_call.arguments | tojson }}\n            {{- '}\\n</tool_call>' }}\n        {%- endfor %}\n        {{- '<|im_end|>\\n' }}\n    {%- elif message.role == \"tool\" %}\n        {%- if (loop.index0 == 0) or (messages[loop.index0 - 1].role != \"tool\") %}\n            {{- '<|im_start|>user' }}\n        {%- endif %}\n        {{- '\\n<tool_response>\\n' }}\n        {{- message.content }}\n        {{- '\\n</tool_response>' }}\n        {%- if loop.last or (messages[loop.index0 + 1].role != \"tool\") %}\n            {{- '<|im_end|>\\n' }}\n        {%- endif %}\n    {%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n    {{- '<|im_start|>assistant\\n' }}\n{%- endif %}\n",
-        """
-        formatted_prompt = ""
-
-        for message in messages:
-            formatted_prompt += f"<|im_start|>{message['role']}\n{message['content']}<|im_end|>\n"
-
-        formatted_prompt += "<|im_start|>assistant\n"
-
-        return formatted_prompt
-
-    def inference(self, system_prompt, user_prompt):
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ]
-        prompt = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        question = [
-            prompt,
-        ]
-        outputs = self.llm.generate(
-            question, self.sampling_params, use_tqdm=False
-        )
-        if len(question) == 1:
-            result = outputs[0].outputs[0].text
-        else:
-            result = []
-            for idx, output in enumerate(outputs):
-                out_generated_text = output.outputs[0].text
-                result.append(out_generated_text)
-        return result
-
-
-class Llama(LLMInfer):
-    def __init__(
-        self,
-        model_path,
-        temperature=0.001,
-        top_p=1,
-        max_tokens=1000,
-        language="zh",
-        max_model_len=8192,
-        tensor_parallel_size=2,
-    ) -> None:
-        super().__init__(
-            model_path,
-            temperature,
-            top_p,
-            max_tokens,
-            language,
-            max_model_len,
-            tensor_parallel_size,
-        )
-
-
-class Deepseek(object):
-    def __init__(
-        self,
-        model_name,
-        model_path=None,
-        temperature=0.001,
-        top_p=1,
-        max_tokens=1000,
-        language="zh",
-    ) -> None:
-        api_key = os.getenv("DEEPSEEK_API_KEY")
-        base_url = "https://api.deepseek.com"
-        self.model_name = model_name
-        self.client = OpenAI(
-            api_key=api_key, timeout=1000, max_retries=1, base_url=base_url
-        )
-
-    def creat_message(
-        self, system_prompt=None, user_prompt=None, few_shot_examples=None
-    ):
-        messages = []
-        if system_prompt:
-            messages = [{"role": "system", "content": system_prompt}]
-        if few_shot_examples:
-            for item in few_shot_examples:
-                user, assistant = item["user"], item["assistant"]
-                messages.append(
-                    {"role": "system", "name": "example_user", "content": user}
-                )
-                messages.append(
-                    {
-                        "role": "system",
-                        "name": "example_assistant",
-                        "content": assistant,
-                    }
-                )
-        if user_prompt:
-            messages.append({"role": "user", "content": user_prompt})
-        return messages
-
-
-class YourClass:
-    def __init__(self, model_name):
-        self.model_name = model_name
-        self.last_request_time = 0  # To track the time of the last request
-
-    def inference(self, system_prompt, user_prompt):
-        messages = self.creat_message(
-            system_prompt=system_prompt, user_prompt=user_prompt
-        )
-        result = self.request_openai(messages=messages, model=self.model_name)
-        return result
-
-
-class Gemini(object):
-    def __init__(
-        self,
-        model_name,
-        model_path=None,
-        temperature=0.001,
-        top_p=1,
-        max_tokens=1000,
-        language="zh",
-    ) -> None:
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"), transport="rest")
-        self.model_name = model_name
-        self.last_request_time = 0  # To track the time of the last request
-
-    def creat_message(
-        self, system_prompt=None, user_prompt=None, few_shot_examples=None
-    ):
-        messages = []
-        if few_shot_examples:
-            for item in few_shot_examples:
-                user, assistant = item["user"], item["assistant"]
-                messages.append({"role": "model", "parts": user})
-                messages.append({"role": "model", "parts": assistant})
-        if user_prompt:
-            messages.append({"role": "user", "parts": user_prompt})
-        return messages
-
-    def request_gemini(self, system_prompt, messages):
+def convert_fc_namespace_to_dict(
+    tool_calls: List[ChatCompletionMessageToolCall],
+) -> List[Dict[str, Any]]:
+    tool_calls_in_dict = []
+    for i, tool_call in enumerate(tool_calls):
+        function = tool_call.function
+        arguments = function.arguments
         try:
-            # Check time difference from the last request
-            current_time = time.time()
-            if current_time - self.last_request_time < 7:
-                # Sleep if the time difference is less than 6 seconds
-                time.sleep(7 - (current_time - self.last_request_time))
+            arguments_dict = json.loads(arguments)
+        except json.JSONDecodeError as e:
+            logging.warning("Skipping tool_call #%d: invalid JSON (%s)", i, e)
+            continue
 
-            model = genai.GenerativeModel(
-                self.model_name, system_instruction=system_prompt
-            )
-            response = model.generate_content(messages)
-            result = response.text
-            self.last_request_time = time.time()
-            return result
-
-        except Exception as e:
-            raise e
-
-    def inference(self, system_prompt, user_prompt):
-        messages = self.creat_message(
-            system_prompt=system_prompt, user_prompt=user_prompt
+        tool_calls_in_dict.append(
+            {"name": function.name, "arguments": arguments_dict}
         )
-        result = self.request_gemini(
-            system_prompt=system_prompt, messages=messages
-        )
-        return result
+
+    return tool_calls_in_dict
 
 
-class Kimi(object):
+class BaseModelInference:
     def __init__(
         self,
-        model_name,
-        model_path=None,
-        temperature=0.001,
-        top_p=1,
-        max_tokens=1000,
-        language="zh",
-    ) -> None:
-        api_key = os.getenv("KIMI_API_KEY")
-        base_url = os.getenv("KIMI_BASE_URL")
+        model_name: str,
+        vllm_kwargs: Optional[Dict[str, str | int]] = None,
+        base_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+        fc_mode: bool = True,
+    ):
+        if vllm_kwargs is not None:
+            local_model_path = vllm_kwargs["local-model-path"]
+            gpu_memory_utilization = vllm_kwargs.get(
+                "gpu-memory-utilization", 0.9
+            )
+            num_gpus = vllm_kwargs.get("num_gpus", 4)
+            port = vllm_kwargs.get("port", 8181)
+            model_max_len = vllm_kwargs.get("model-max-len", 40960)
+            dtype = vllm_kwargs.get("dtype", "float32")
+
+            # Example additional flags are "--enable-auto-tool-choice --tool-call-parser hermes"
+            additional_args = vllm_kwargs.get("additional-args", None)
+
+            start_vllm_cmd = [
+                sys.executable,
+                "-m",
+                "vllm.entrypoints.openai.api_server",
+                "--served-model-name",
+                str(model_name).strip(),
+                "--model",
+                str(local_model_path),
+                "--tensor-parallel-size",
+                str(num_gpus).strip(),
+                "--dtype",
+                str(dtype),
+                "--max-model-len",
+                str(model_max_len).strip(),
+                "--host",
+                "0.0.0.0",
+                "--port",
+                str(port).strip(),
+                "--gpu-memory-utilization",
+                str(gpu_memory_utilization),
+            ]
+
+            if additional_args is not None:
+                start_vllm_cmd.extend(additional_args.split())
+
+            base_url = f"http://127.0.0.1:{port}/v1"
+            api_key = "EMPTY"
+
+            subprocess.run(start_vllm_cmd, check=True)
+
         self.model_name = model_name
-        self.client = OpenAI(
-            api_key=api_key, timeout=1000, max_retries=1, base_url=base_url
-        )
+        self.fc_mode = fc_mode
 
-    def creat_message(self, system_prompt=None, user_prompt=None):
-        messages = []
-        if system_prompt:
-            messages = [{"role": "system", "content": system_prompt}]
-        if user_prompt:
-            messages.append({"role": "user", "content": user_prompt})
-        return messages
+        assert all([base_url, api_key]), "base_url and api_key are required."
 
-    def inference(self, system_prompt, user_prompt):
-        messages = self.creat_message(
-            system_prompt=system_prompt, user_prompt=user_prompt
-        )
-        response = self.client.chat.completions.create(
+        self.client = OpenAI(base_url=base_url, api_key=api_key)
+
+    def _generate(
+        self,
+        messages: List[Dict[str, Any]],
+        generation_kwargs: Dict[str, Any],
+        functions: Optional[List[Any]] = NOT_GIVEN,
+    ) -> ChatCompletionMessage:
+        """Take the messages and return the generated text.
+
+        messages: It has the following schema:
+            [
+              {"role": "system", "content": "You are a helpful assistant. You can use following tools."},
+              {"role": "user", "content": "What is the weather like today?"},
+              {"role": "assistant", "tool_calls": [{"type": "function", "function": "..."}]},
+              {"role": "tool", "name": "get_current_weather", "content": "22.0"},
+              {"role": "assistant", "content": "The weather is 22.0 degree."},
+              ...
+            ]
+        generation_kwargs: It supports following arguments:
+            {
+              "temperature": 0.1,
+              "max_tokens": 64,
+              "top_p": 0.9,
+            }
+        functions: A list of functions/tools to use. If provided, evaluate the model with FC mode,
+            otherwise with prompt mode.
+        """
+        temperature = generation_kwargs.get("temperature", 0.1)
+        max_tokens = generation_kwargs.get("max_tokens", 64)
+        top_p = generation_kwargs.get("top_p", 0.9)
+
+        chat_response = self.client.chat.completions.create(
             model=self.model_name,
             messages=messages,
-            max_tokens=1024,
-            temperature=0.0,
+            tools=functions,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
         )
-        return response.choices[0].message.content
+        message = chat_response.choices[0].message
+
+        return message
+
+    def generate(
+        self,
+        messages: List[Dict[str, Any]],
+        generation_kwargs: Dict[str, Any],
+        functions: Optional[List[Any]] = NOT_GIVEN,
+    ) -> Dict[str, Any]:
+        raise NotImplementedError("Implement this method.")
 
 
-model_dict = {}
+class UserModelInference(BaseModelInference):
+    def generate(
+        self,
+        messages: List[Dict[str, Any]],
+        generation_kwargs: Dict[str, Any],
+        functions: Optional[List[Any]] = NOT_GIVEN,
+    ) -> Dict[str, Any]:
+        current_message = self._generate(messages, generation_kwargs)
+        current_message_text = current_message.content
+        return {"role": "assistant", "content": current_message_text}
 
 
-def get_model(model_name, model_path):
-    global model_dict
-    if model_name in model_dict:
-        model = model_dict[model_name]
-    else:
-        model_name_lower = model_name.lower()
-        if "qwen" in model_name_lower:
-            model = LLMInfer(model_path)
-        elif "llama" in model_name_lower:
-            model = Llama(model_path)
-        elif "deepseek" in model_name_lower:
-            model = Deepseek(model_name)
-        elif "gemini" in model_name_lower:
-            model = Gemini(model_name)
-        elif "kimi" in model_name_lower:
-            model = Kimi(model_name)
-        elif model_path:
-            model = Llama(model_path)
+class Qwen3AgentInference(BaseModelInference):
+    def __init__(
+        self,
+        model_name: str,
+        vllm_kwargs: Optional[Dict[str, str]] = None,
+        base_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+        fc_mode: bool = True,
+    ):
+        # Let the agent choose if it should call tools or return text automatically when the FC mode is on.
+        if fc_mode:
+            vllm_kwargs.update(
+                {
+                    "additional_args": "--enable-auto-tool-choice --tool-call-parser hermes"
+                }
+            )
+        super().__init__(model_name, vllm_kwargs, base_url, api_key, fc_mode)
+
+    @staticmethod
+    def _maybe_extract_reasoning_content(text: str) -> Dict[str, str]:
+        reasoning_text = ""
+        if "</think>" in text:
+            parts = text.split("</think>")
+            reasoning_text = (
+                parts[0].rstrip("\n").split("<think>")[-1].lstrip("\n")
+            )
+            text = parts[-1].lstrip("\n")
+
+        return {"reasoning_content": reasoning_text, "response_content": text}
+
+    @staticmethod
+    def _extract_tool_calls(text: str) -> List[Dict[str, Any]]:
+        blobs = re.findall(
+            r"<tool_call>\s*(\{.*?\})\s*</tool_call>", text, flags=re.DOTALL
+        )
+        tools = []
+        for i, b in enumerate(blobs, 1):
+            try:
+                obj = json.loads(b)
+            except json.JSONDecodeError as e:
+                logging.warning(
+                    "Skipping tool_call #%d: invalid JSON (%s)", i, e
+                )
+                continue
+            # (optional) sanity checks
+            if (
+                not isinstance(obj, dict)
+                or "name" not in obj
+                or "arguments" not in obj
+            ):
+                logging.warning(
+                    "Skipping tool_call #%d: missing 'name' or 'arguments': %r",
+                    i,
+                    obj,
+                )
+                continue
+            tools.append(obj)
+        return tools
+
+    def _prompt_mode_post_parsing(self, raw_response: str) -> Dict[str, Any]:
+        # Extract reasoning content if any.
+        parsed_response = self._maybe_extract_reasoning_content(raw_response)
+        reasoning_content = parsed_response["reasoning_content"]
+        response_content = parsed_response["response_content"]
+
+        # Extract tool calls if any.
+        tool_calls = self._extract_tool_calls(response_content)
+        if tool_calls:
+            dialogue = {
+                "tool_calls": tool_calls,
+                "reasoning_content": reasoning_content,
+            }
         else:
-            raise ("Unsupported model")
-        model_dict[model_name] = model
-    return model
+            dialogue = {
+                "content": response_content,
+                "reasoning_content": reasoning_content,
+            }
+
+        return dialogue
+
+    def generate(
+        self,
+        messages: List[Dict[str, Any]],
+        generation_kwargs: Dict[str, Any],
+        functions: Optional[List[Any]] = NOT_GIVEN,
+    ) -> Dict[str, Any]:
+        # Obtain the raw response from the LLM.
+        message = self._generate(
+            messages=messages,
+            generation_kwargs=generation_kwargs,
+            functions=functions,
+        )
+
+        # Return the dialogue to the Scene.
+        # It contains at least 3 fields: "sender", "recipient", "message".
+        dialogue: Dict[str, Any] = {}
+
+        if self.fc_mode:
+            message_text = message.content
+            parsed_text = self._maybe_extract_reasoning_content(message_text)
+            reasoning_content = parsed_text["reasoning_content"]
+            response_content = parsed_text["response_content"]
+
+            dialogue.update(
+                {
+                    "sender": "agent",
+                    "reasoning_content": reasoning_content,
+                    "response_content": response_content,
+                }
+            )
+
+            if message.tool_calls:
+                # If the agent calls any tools, pass the dialogue to an executor.
+                tool_calls = convert_fc_namespace_to_dict(message.tool_calls)
+                dialogue.update(
+                    {
+                        "recipient": "executor",
+                        "message": {
+                            "role": "assistant",
+                            "tool_calls": tool_calls,
+                        },
+                    }
+                )
+            else:
+                # If the agent doesn't call any tools, return the dialogue to the user.
+                dialogue.update(
+                    {
+                        "recipient": "user",
+                        "message": {
+                            "role": "assistant",
+                            "content": response_content,
+                        },
+                    }
+                )
+
+        else:
+            parsed_message = self._prompt_mode_post_parsing(
+                raw_response=message.content
+            )
+            if "tool_calls" in parsed_message:
+                dialogue.update(
+                    {
+                        "sender": "agent",
+                        "recipient": "executor",
+                        "reasoning_content": parsed_message[
+                            "reasoning_content"
+                        ],
+                        "response_content": parsed_message["response_content"],
+                        "message": {
+                            "role": "assistant",
+                            "tool_calls": parsed_message["tool_calls"],
+                        },
+                    }
+                )
+            else:
+                dialogue.update(
+                    {
+                        "sender": "agent",
+                        "recipient": "user",
+                        "reasoning_content": parsed_message[
+                            "reasoning_content"
+                        ],
+                        "response_content": parsed_message["response_content"],
+                        "message": {
+                            "role": "assistant",
+                            "content": parsed_message["content"],
+                        },
+                    }
+                )
+
+        return dialogue

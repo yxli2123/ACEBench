@@ -3,3 +3,6 @@ line-length = 79
 
 [tool.ruff.lint]
 select = ["E", "F", "I"] 
+
+[tool.ruff.format]
+indent-style = "space"
