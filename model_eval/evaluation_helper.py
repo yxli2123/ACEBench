@@ -1,15 +1,12 @@
 import glob
-import json
-import os
 
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Alignment
 
-from model_eval.checker import *
 from model_eval.utils import *
-from model_inference.prompt_en import *
-from model_inference.prompt_zh import *
+from model_inference.prompt.prompt_en import *
+from model_inference.prompt.prompt_zh import *
 
 REST_API_GROUND_TRUTH_FILE_PATH = "api_status_check_ground_truth_REST.json"
 EXECTUABLE_API_GROUND_TRUTH_FILE_PATH = (

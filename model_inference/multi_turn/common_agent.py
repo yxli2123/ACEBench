@@ -1,8 +1,8 @@
 import ast
 import re
 
-from model_inference.prompt_en import BASE_PROMPT_EN, TRAVEL_PROMPT_EN
-from model_inference.prompt_zh import BASE_PROMPT_ZH, TRAVEL_PROMPT_ZH
+from model_inference.prompt.prompt_en import BASE_PROMPT_EN, TRAVEL_PROMPT_EN
+from model_inference.prompt.prompt_zh import BASE_PROMPT_ZH, TRAVEL_PROMPT_ZH
 
 MULTI_TURN_AGENT_PROMPT_SYSTEM_ZH = """你是一个AI系统，你的角色为system，请根据给定的API说明和对话历史1..t，为角色system生成在步骤t+1中生成相应的内容。
 1 如果上一步提供的信息完整，能够正常进行api的调用，你应该调用的API请求，API请求以[ApiName(key1='value1', key2='value2', ...)]的格式输出,不要在输出中输出任何其他解释或提示或API调用的结果。

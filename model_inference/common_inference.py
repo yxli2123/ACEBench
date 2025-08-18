@@ -5,12 +5,15 @@ from tqdm import tqdm
 from model_inference.multi_step.common_agent_step import CommonAgent_Step
 from model_inference.multi_step.execution_role_step import EXECUTION_STEP
 from model_inference.multi_step.multi_step_scene import Mulit_Step_Scene
-from model_inference.multi_turn.APIModel_user import APIUSER
-from model_inference.multi_turn.common_agent import CommonAgent
+from model_inference.multi_turn.APIModel_user import (
+    APIUSER,
+    SYSTEM_PROMPT_BASE_ZH,
+    SYSTEM_PROMPT_TRAVEL_ZH,
+)
 from model_inference.multi_turn.execution_role import EXECUTION
 from model_inference.multi_turn.multi_turn_scene import Scene
-from model_inference.prompt_en import *
-from model_inference.prompt_zh import *
+from model_inference.prompt.prompt_en import *
+from model_inference.prompt.prompt_zh import *
 
 SAVED_CLASS = {
     "BaseApi": ["wifi", "logged_in"],
@@ -43,8 +46,10 @@ class InferenceScene:
         self.max_dialog_turns = max_dialog_turns
         self.language = language
 
-    def inference(self, question, functions, time, profile, test_case, id):
-        category = id.rsplit("_", 1)[0]
+    def inference(
+        self, question, functions, time, profile, test_case, test_id: str
+    ):
+        category = test_id.rsplit("_", 1)[0]
         if "multi_turn" in category and "agent" in category:
             initial_config = test_case["initial_config"]
             involved_classes = test_case["involved_classes"]
@@ -123,13 +128,70 @@ class InferenceScene:
         test_id,
         time,
     ):
-        agent = CommonAgent(
-            model=self.model,
-            time=time,
-            functions=functions,
-            involved_class=involved_classes,
-            language=self.language,
-        )
+        # Turns |            Signals                  |
+        # ------|-------------------------------------|
+        #   1   |    user          -->  agent         |
+        #   2   |    agent         -->  executor/user |
+        #   3   |    executor/user -->  agent         |
+        #   4   |              ....                   |
+
+        user_message_history = []
+        agent_message_history = []
+        executor_message_history = []
+
+        # Initialize user messages.
+        if self.language == "zh":
+            if "Travel" in involved_classes:
+                system_prompt = SYSTEM_PROMPT_TRAVEL_ZH
+            else:
+                system_prompt = SYSTEM_PROMPT_BASE_ZH
+            user_message_history.extend(
+                [
+                    {
+                        "role": "system",
+                        "content": system_prompt.format(instruction=question),
+                    },
+                    {
+                        "role": "user",
+                        "content": "今天有什么需要帮助的吗？",
+                    },
+                ]
+            )
+        elif self.language == "en":
+            if "Travel" in involved_classes:
+                system_prompt = SYSTEM_PROMPT_TRAVEL_EN
+            else:
+                system_prompt = SYSTEM_PROMPT_BASE_EN
+            user_message_history.extend(
+                [
+                    {
+                        "role": "system",
+                        "content": system_prompt.format(instruction=question),
+                    },
+                    {
+                        "role": "user",
+                        "content": "Is there anything you need help with today?",
+                    },
+                ]
+            )
+
+        if self.language == "zh":
+            system_prompt = MULTI_TURN_AGENT_PROMPT_SYSTEM_ZH
+
+            if "Travel" in self.involved_class:
+                system_prompt += TRAVEL_PROMPT_ZH
+            if "BaseApi" in self.involved_class:
+                system_prompt += BASE_PROMPT_ZH
+        elif self.language == "en":
+            system_prompt = MULTI_TURN_AGENT_PROMPT_SYSTEM_EN
+            user_prompt = MULTI_TURN_AGENT_PROMPT_USER_EN.format(
+                functions=self.functions, history=history
+            )
+            if "Travel" in self.involved_class:
+                system_prompt += TRAVEL_PROMPT_EN
+            if "BaseApi" in self.involved_class:
+                system_prompt += BASE_PROMPT_EN
+
         user = APIUSER(
             model_name=self.user_model,
             involved_class=involved_classes,

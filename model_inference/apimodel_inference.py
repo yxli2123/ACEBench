@@ -13,8 +13,8 @@ from model_inference.multi_turn.APIModel_agent import APIAgent_turn
 from model_inference.multi_turn.APIModel_user import APIUSER
 from model_inference.multi_turn.execution_role import EXECUTION
 from model_inference.multi_turn.multi_turn_scene import Scene
-from model_inference.prompt_en import *
-from model_inference.prompt_zh import *
+from model_inference.prompt.prompt_en import *
+from model_inference.prompt.prompt_zh import *
 
 SAVED_CLASS = {
     "BaseApi": ["wifi", "logged_in"],
