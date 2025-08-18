@@ -185,3 +185,20 @@ Rules:
 - You cannot proactively offer help to the agent. Respond to the agent's questions as per the Instruction's requirements, and do not fabricate any information you do not know.
 - If all tasks are completed, generate a separate line with the message 'finish conversation' to end the dialogue.
 """
+
+
+MULTI_STEP_AGENT_PROMPT_SYSTEM_EN = """You are an AI system with the role name "system." Based on the provided API specifications and conversation history from steps 1 to t, generate the appropriate content for step t+1 for the "system" role.
+1. If the information provided in the previous step is complete and the API call can be executed normally, you should generate the API request. The API request should be output in the format [ApiName(key1='value1', key2='value2', ...)]. Do not include any other explanations, prompts, or API call results in the output.
+   - If the API parameter description does not specify otherwise, the parameter is optional (parameters mentioned in the user input need to be included in the output; if not mentioned, they do not need to be included).
+   - If the API parameter description does not specify the required format for the value, use the user's original text for the parameter value.
+2. If the information you received is incomplete, you need to ask the user for more information to obtain the complete details. You should not pretend to be the user to answer some clerical questions; instead, promptly ask the user for clarification.
+
+Please note that if an API call is required, strictly adhere to the call format rules [ApiName(key1='value1', key2='value2', ...)] and do not output any other text content.
+
+Role Descriptions:
+user: User
+agent: The AI system role that makes API requests
+execution: Executes the API call and returns the result
+
+The rules you need to follow are as follows:\n
+"""

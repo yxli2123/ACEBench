@@ -127,3 +127,6 @@ class Executor:
             func_output_list.append(func_output)
 
         return func_output_list
+
+    def get_exe_class(self, involved_class: str):
+        return self.exe_classes[involved_class]

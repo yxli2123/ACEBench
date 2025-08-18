@@ -115,4 +115,11 @@ class BaseModelInference:
         generation_kwargs: Dict[str, Any],
         functions: List[Any] | None | NOT_GIVEN = NOT_GIVEN,
     ) -> Dict[str, Any]:
-        raise NotImplementedError("Implement this method.")
+        raise NotImplementedError("Implement this `generate`.")
+
+    def tool_output_to_message(
+        self,
+        tool_calls: List[Dict[str, Any]],
+        tool_outputs: List[str],
+    ) -> List[Dict[str, Any]]:
+        raise NotImplementedError("Implement this `tool_output_to_message`.")

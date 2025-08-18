@@ -31,6 +31,54 @@ def convert_fc_namespace_to_dict(
     return tool_calls_in_dict
 
 
+def tool_output_to_message(
+    tool_calls: List[Dict[str, Any]],
+    tool_outputs: List[str],
+) -> List[Dict[str, Any]]:
+    """Example input:
+    tool_calls = [
+        {
+            "name": "get_weather",
+            "arguments": "..."
+        },
+        {
+            "name": "get_time",
+            "arguments": "..."
+        },
+    ]
+    fun_output_list = [
+        '{\"temp_c\": 22.0, \"conditions\": \"Sunny\"}',
+        '\"2025-08-18 18:30:00 CEST\',
+    ]
+    Example output:
+    [
+        {
+            "role": "tool",
+            "tool_call_id": "call_1",
+            "name": "get_weather",
+            "content": "{\"temp_c\": 22.0, \"conditions\": \"Sunny\"}"
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "call_2",
+            "name": "get_time",
+            "content": "\"2025-08-18 18:30:00 CEST\""
+        },
+    ]
+    """
+    tool_output_messages = []
+    for tool_call, tool_output in zip(tool_calls, tool_outputs):
+        tool_output_messages.append(
+            {
+                "role": "tool",
+                "name": tool_call["name"],
+                "content": tool_output,
+            }
+        )
+
+    return tool_output_messages
+
+
 class Qwen3AgentInference(BaseModelInference):
     def __init__(
         self,

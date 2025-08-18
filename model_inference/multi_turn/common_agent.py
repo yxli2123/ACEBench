@@ -4,7 +4,7 @@ import re
 from model_inference.prompt.prompt_en import BASE_PROMPT_EN, TRAVEL_PROMPT_EN
 from model_inference.prompt.prompt_zh import BASE_PROMPT_ZH, TRAVEL_PROMPT_ZH
 
-MULTI_TURN_AGENT_PROMPT_SYSTEM_ZH = """你是一个AI系统，你的角色为system，请根据给定的API说明和对话历史1..t，为角色system生成在步骤t+1中生成相应的内容。
+MULTI_STEP_AGENT_PROMPT_SYSTEM_ZH = """你是一个AI系统，你的角色为system，请根据给定的API说明和对话历史1..t，为角色system生成在步骤t+1中生成相应的内容。
 1 如果上一步提供的信息完整，能够正常进行api的调用，你应该调用的API请求，API请求以[ApiName(key1='value1', key2='value2', ...)]的格式输出,不要在输出中输出任何其他解释或提示或API调用的结果。
 如果API参数描述中没有特殊说明，则该参数为非必选参数（用户输入中提及的参数需要包含在输出中，如果未提及，则不需要包含在输出中）。\n如果API参数描述未指定取值格式要求，则该参数取值使用用户原文。
 2 如果你得到的信息不完整，需要向user提问，以获得完整的信息。你不能扮演user去回答一些文职的问题，应该及时像user询问。
@@ -19,11 +19,11 @@ execution: 执行api调用并返回结果
 你需要遵循的规则如下：\n
 """
 
-MULTI_TURN_AGENT_PROMPT_USER_ZH = (
+MULTI_STEP_AGENT_PROMPT_USER_ZH = (
     """下面是你可使用的api列表:\n {functions}\n\n对话历史1..t:\n{history}"""
 )
 
-MULTI_TURN_AGENT_PROMPT_SYSTEM_EN = """You are an AI system with the role name "system." Based on the provided API specifications and conversation history from steps 1 to t, generate the appropriate content for step t+1 for the "system" role.
+MULTI_STEP_AGENT_PROMPT_SYSTEM_EN = """You are an AI system with the role name "system." Based on the provided API specifications and conversation history from steps 1 to t, generate the appropriate content for step t+1 for the "system" role.
 1. If the information provided in the previous step is complete and the API call can be executed normally, you should generate the API request. The API request should be output in the format [ApiName(key1='value1', key2='value2', ...)]. Do not include any other explanations, prompts, or API call results in the output.
    - If the API parameter description does not specify otherwise, the parameter is optional (parameters mentioned in the user input need to be included in the output; if not mentioned, they do not need to be included).
    - If the API parameter description does not specify the required format for the value, use the user's original text for the parameter value.
@@ -39,7 +39,7 @@ execution: Executes the API call and returns the result
 The rules you need to follow are as follows:\n
 """
 
-MULTI_TURN_AGENT_PROMPT_USER_EN = """Below is the list of APIs you can use:\n {functions}\n\nConversation history 1..t:\n{history}"""
+MULTI_STEP_AGENT_PROMPT_USER_EN = """Below is the list of APIs you can use:\n {functions}\n\nConversation history 1..t:\n{history}"""
 
 
 class CommonAgent(object):

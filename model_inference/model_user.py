@@ -10,7 +10,7 @@ class UserModelInference(BaseModelInference):
         messages: List[Dict[str, Any]],
         generation_kwargs: Dict[str, Any],
         functions: List[Any] | None | NOT_GIVEN = NOT_GIVEN,
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, str]:
         # Obtain the raw response from the LLM.
         message = self._generate(
             messages=messages,
