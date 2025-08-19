@@ -7,7 +7,16 @@ from pathlib import Path
 from tqdm import tqdm
 
 from category import ACE_DATA_CATEGORY
-from model_inference.inference_map import inference_map
+from data.data_utils import convert_text_to_messages
+from model_inference.common_inference import inference, write_result
+from model_inference.executor import Executor
+from model_inference.prompt.prompt_utils import (
+    compose_agent_system_prompt,
+    compose_default_system_prompt,
+    compose_preference_system_prompt,
+    compose_special_system_prompt,
+    compose_user_system_prompt,
+)
 
 # Directory of the ACEBench
 PACKAGE_ROOT = Path(__file__).resolve().parents[0]
@@ -20,14 +29,15 @@ def parser():
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4o",
-        nargs="+",
-        help="Name of the model(s) to use",
+        default="qwen3",
+        help="Name of the model to use",
     )
 
     # For local models, specify the model path
     parser.add_argument(
-        "--model-path", type=str, help="Path to the model for local models"
+        "--model-local-path",
+        type=str,
+        help="Path to the model for local models",
     )
 
     # Category of the model you want to test, default is "all"
@@ -155,79 +165,88 @@ def sort_json(file):
             f.write("\n")
 
 
-def generate_singal(args, model_name, test_case):
-    model_path = args.model_path
+def generate_single_case(agent_model, test_case, user_model, args):
     result_path = args.result_path
-    model_inference = inference_map[model_name](
-        model_name=model_name,
-        model_path=model_path,
-        temperature=args.temperature,
-        top_p=args.top_p,
-        max_tokens=args.max_tokens,
-        max_dialog_turns=args.max_dialog_turns,
-        user_model=args.user_model,
-        language=args.language,
-        enable_think=args.enable_think,
-        tensor_parallel_size=args.tensor_parallel_size,
-    )
 
-    if "agent" in test_case["id"]:
-        id, question, functions = (
-            test_case["id"],
-            test_case["question"],
-            test_case["function"],
-        )
-        if isinstance(functions, (dict, str)):
-            functions = [functions]
-        time = ""
-        profile = ""
-        result, process_list = model_inference.inference(
-            question, functions, time, profile, test_case, id
-        )
-        result_to_write = {"id": id, "result": result, "process": process_list}
-        model_inference.write_result(result_to_write, model_name, result_path)
+    generation_kwargs = {
+        "temperature": args.temperature,
+        "top_p": args.top_p,
+        "max_tokens": args.max_tokens,
+    }
 
-    elif "preference" in test_case["id"]:
-        id, question, functions, profile = (
-            test_case["id"],
-            test_case["question"],
-            test_case["function"],
-            test_case["profile"],
-        )
-        time = ""
-        if isinstance(functions, (dict, str)):
-            functions = [functions]
+    test_id = test_case["test_id"]
 
-        result = model_inference.inference(
-            question, functions, time, profile, test_case, id
+    # Multi-turn and multi-step mode.
+    if "agent" in test_id:
+        initial_config = test_case["initial_config"]
+        involved_classes = test_case["involved_classes"]
+        test_idx = test_id.split("_")[-1]
+        category = "multi_turn" if "multi_turn" in test_id else "multi_step"
+
+        # Initialize agent model by injecting the system prompt.
+        agent_system_prompt = compose_agent_system_prompt(
+            category, involved_classes, args.language
+        )
+        agent_model.inject_system_prompt(agent_system_prompt)
+
+        # Initialize user model by injecting the system prompt.
+        if "multi_turn" in test_case:
+            user_system_prompt = compose_user_system_prompt()
+            user_model.inject_system_prompt(user_system_prompt)
+        else:
+            user_model = None
+
+        # Initialize the executor.
+        executor = Executor(
+            class_init_config=initial_config,
+            involved_classes=involved_classes,
+            language=args.language,
         )
 
-        result_to_write = {
-            "id": id,
-            "result": result,
-        }
-        model_inference.write_result(result_to_write, model_name, result_path)
+        dialogue = inference(
+            agent_model=agent_model,
+            question=test_case["question"],
+            functions=test_case["functions"],
+            max_dialog_turns=16,
+            generation_kwargs=generation_kwargs,
+            executor=executor,
+            user_model=user_model,
+        )
+
+        write_result(dialogue, result_path, mode="agent")
 
     else:
-        id, question, functions, time = (
-            test_case["id"],
-            test_case["question"],
-            test_case["function"],
-            test_case["time"],
-        )
-        profile = ""
-        if isinstance(functions, (dict, str)):
-            functions = [functions]
+        # Initialize agent model by injecting the system prompt.
+        if "special" in test_id:
+            agent_system_prompt = compose_special_system_prompt()
+        elif "preferences" in test_id:
+            agent_system_prompt = compose_preference_system_prompt()
+        else:
+            agent_system_prompt = compose_default_system_prompt()
 
-        result = model_inference.inference(
-            question, functions, time, profile, test_case, id
+        agent_model.inject_system_prompt(agent_system_prompt)
+
+        # Patch: convert the offline multi turn text into chat message format.
+        if "multi_turn" in test_id:
+            agent_message_history = convert_text_to_messages(
+                test_case["question"]
+            )
+            # The last one is always the user's query.
+            question = agent_message_history.pop(-1)["content"]
+        else:
+            agent_message_history = None
+            question = test_case["question"]
+
+        dialogue = inference(
+            agent_model=agent_model,
+            question=question,
+            functions=test_case["functions"],
+            max_dialog_turns=1,
+            generation_kwargs=generation_kwargs,
+            agent_message_history=agent_message_history,
         )
 
-        result_to_write = {
-            "id": id,
-            "result": result,
-        }
-        model_inference.write_result(result_to_write, model_name, result_path)
+        write_result_function_text(dialogue, result_path)
 
 
 def generate_results(args, model_name, test_case, completed_id_set):
@@ -236,7 +255,7 @@ def generate_results(args, model_name, test_case, completed_id_set):
         for test_case in test_cases_total:
             if test_case["id"] not in completed_id_set:
                 future = executor.submit(
-                    generate_singal, args, model_name, test_case
+                    generate_single_case, model_name, test_case, args
                 )
                 futures.append(future)
 
