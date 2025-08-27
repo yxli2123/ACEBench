@@ -3,8 +3,6 @@ from typing import Any, Dict, List
 from model_inference.executor import Executor
 from model_inference.model_agent import tool_output_to_message
 from model_inference.model_base import BaseModelInference
-from model_inference.prompt.prompt_en import *
-from model_inference.prompt.prompt_zh import *
 
 
 def convert_messages_to_dialogue(
@@ -34,6 +32,7 @@ def convert_messages_to_dialogue(
 
 def inference(
     agent_model: BaseModelInference,
+    agent_system_prompt: str,
     question: str,
     functions: List[Dict[str, Any]],
     max_dialog_turns: int,
@@ -41,6 +40,7 @@ def inference(
     user_model_generation_kwargs: Dict[str, Any] | None = None,
     executor: Executor | None = None,
     user_model: BaseModelInference | None = None,
+    user_system_prompt: str | None = None,
     agent_message_history: List[Dict[str, Any]] | None = None,
 ) -> List[Dict[str, Any]]:
     """This is a general inference for agent. It is designed as agent centralized.
@@ -55,6 +55,7 @@ def inference(
 
     Args:
         agent_model: the agent model with system prompt injected.
+        agent_system_prompt: the system prompt injected for the agent model.
         question: the question for the agent model if no user_model is provided,
             otherwise the init query for the user model.
         functions: functions that the agent model can use.
@@ -64,6 +65,7 @@ def inference(
         user_model_generation_kwargs: the user model generation kwargs.
         executor: Optional if in multi-turn or multi-step evaluation.
         user_model: Optional if in multi-turn evaluation.
+        user_system_prompt: system prompt for the user model.,
         agent_message_history: For data_normal_multi_turn_user_adjust.json,
             where we know the historical multi-turn conversations.
 
@@ -73,15 +75,26 @@ def inference(
     """
 
     # Initialization
-    dialogue_history = (
+    dialogue_history: List[Dict[str, Any]] = (
         []
         if agent_message_history is None
         else convert_messages_to_dialogue(agent_message_history)
     )
-    agent_message_history = (
-        [] if agent_message_history is None else agent_message_history
+
+    if agent_message_history is None:
+        agent_message_history = [
+            {"role": "system", "content": agent_system_prompt}
+        ]
+    elif agent_message_history[0]["role"] != "system":
+        agent_message_history.insert(
+            0, {"role": "system", "content": agent_system_prompt}
+        )
+
+    user_message_history = (
+        [{"role": "system", "content": user_system_prompt}]
+        if user_system_prompt
+        else []
     )
-    user_message_history = []
 
     # Initial turn.
     # Single turn or multi step modes.
@@ -184,7 +197,3 @@ def inference(
             )
 
     return dialogue_history
-
-
-def write_result(result_to_write, result_path, mode="agent"):
-    pass

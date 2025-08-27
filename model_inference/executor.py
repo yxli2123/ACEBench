@@ -18,6 +18,7 @@ from scenarios.scenarioszh.phone_platform.reminder import (
     ReminderApi as ReminderApi_Zh,
 )
 from scenarios.scenarioszh.travel import Travel as Travel_Zh
+from scenarios.utils import SAVED_CLASS
 
 CLASS_MAPPING_EN = {
     "Travel": Travel,
@@ -130,3 +131,16 @@ class Executor:
 
     def get_exe_class(self, involved_class: str):
         return self.exe_classes[involved_class]
+
+    def return_exe_class_status(self) -> List[Dict[Dict[str, Any]]]:
+        status_list = []
+        for involved_class in self.involved_classes:
+            exe_class = self.get_exe_class(involved_class)
+            status_dict = {}
+            for attr_name in SAVED_CLASS[involved_class]:
+                status = getattr(exe_class, attr_name)
+                status_dict.update({attr_name: status})
+
+            status_list.append({involved_class: status_dict})
+
+        return status_list

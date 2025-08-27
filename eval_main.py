@@ -684,14 +684,14 @@ def get_paths(language):
     base_paths = {
         "zh": {
             "INPUT_PATH": "./result_all/result_zh/",
-            "PROMPT_PATH": "./data/data_zh/",
-            "POSSIBLE_ANSWER_PATH": "./data/data_zh/possible_answer/",
+            "PROMPT_PATH": "./data/zh/",
+            "POSSIBLE_ANSWER_PATH": "./data/zh/possible_answer/",
             "OUTPUT_PATH": "./score_all/score_zh/",
         },
         "en": {
             "INPUT_PATH": "./result_all/result_en/",
-            "PROMPT_PATH": "./data/data_en/",
-            "POSSIBLE_ANSWER_PATH": "./data/data_en/possible_answer/",
+            "PROMPT_PATH": "./data/en/",
+            "POSSIBLE_ANSWER_PATH": "./data/en/possible_answer/",
             "OUTPUT_PATH": "./score_all/score_en/",
         },
     }

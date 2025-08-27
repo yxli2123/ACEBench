@@ -65,11 +65,6 @@ class BaseModelInference:
 
         self.client = OpenAI(base_url=base_url, api_key=api_key)
 
-        self.system_prompt = None
-
-    def inject_system_prompt(self, prompt: str):
-        self.system_prompt = prompt
-
     def _generate(
         self,
         messages: List[Dict[str, Any]],
@@ -99,13 +94,6 @@ class BaseModelInference:
         temperature = generation_kwargs.get("temperature", 0.1)
         max_tokens = generation_kwargs.get("max_tokens", 64)
         top_p = generation_kwargs.get("top_p", 0.9)
-
-        # If no system prompt in the `message`, use the `self.system_prompt`.
-        # If `self.system_prompt=None`, skip the system prompt.
-        if messages[0]["role"] != "system" and self.system_prompt is not None:
-            messages.insert(
-                0, {"role": "system", "content": self.system_prompt}
-            )
 
         # tool_choice="auto": let the model choose between function calls or text outputs.
         chat_response = self.client.chat.completions.create(

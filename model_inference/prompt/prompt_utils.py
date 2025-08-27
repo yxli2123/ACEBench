@@ -75,5 +75,19 @@ def compose_special_system_prompt(
     return system_prompt
 
 
-def compose_default_system_prompt():
-    pass
+def compose_normal_system_prompt(
+    time,
+    functions,
+    language,
+):
+    if language == "zh":
+        system_prompt = SYSTEM_PROMPT_FOR_NORMAL_DATA_ZH.format(
+            time=time, function=functions
+        )
+    elif language == "en":
+        system_prompt = SYSTEM_PROMPT_FOR_NORMAL_DATA_EN.format(
+            time=time, function=functions
+        )
+    else:
+        raise KeyError("Language not supported.")
+    return system_prompt

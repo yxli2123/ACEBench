@@ -1,26 +1,25 @@
 import argparse
 import json
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import warnings
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-
-from tqdm import tqdm
+from typing import Any, Dict, List, Tuple
 
 from category import ACE_DATA_CATEGORY
 from data.data_utils import convert_text_to_messages
-from model_inference.common_inference import inference, write_result
+from model_inference.common_inference import inference
 from model_inference.executor import Executor
+from model_inference.model_agent import Qwen3AgentInference
+from model_inference.model_base import BaseModelInference
+from model_inference.model_user import UserModelInference
 from model_inference.prompt.prompt_utils import (
     compose_agent_system_prompt,
-    compose_default_system_prompt,
+    compose_normal_system_prompt,
     compose_preference_system_prompt,
     compose_special_system_prompt,
     compose_user_system_prompt,
 )
-
-# Directory of the ACEBench
-PACKAGE_ROOT = Path(__file__).resolve().parents[0]
-PROJECT_ROOT = os.getenv("PROJECT_ROOT", Path(__file__).resolve().parents[0])
 
 
 def parser():
@@ -50,9 +49,19 @@ def parser():
     )
 
     parser.add_argument(
-        "--eval-root-dir",
+        "--data-dir",
         type=str,
-        help="Root directory of the evaluation data. It stores the generated result files, dialogue log files, and score files.",
+        help="Root directory of the test data.",
+    )
+    parser.add_argument(
+        "--result-dir",
+        type=str,
+        help="Root directory of the prediction data.",
+    )
+    parser.add_argument(
+        "--log-dir",
+        type=str,
+        help="Root directory of the log data.",
     )
 
     # Temperature parameter to control randomness of model output, default is 0.7
@@ -127,47 +136,18 @@ def parser():
         default=1,
         help="Tensor parallel size.",
     )
-    parser.add_argument("--result-dir", type=str, help="result directory")
 
     args = parser.parse_args()
     return args
 
 
-def load_test_cases(base_path, filenames):
-    cases = []
-
-    for filename in filenames:
-        file_path = os.path.join(base_path, filename)
-        try:
-            with open(file_path, "r", encoding="utf-8") as file:
-                cases.extend(json.loads(line) for line in file)
-        except FileNotFoundError:
-            print(f"Error: File not found - {file_path}")
-        except json.JSONDecodeError:
-            print(f"Error: Failed to parse JSON in file - {file_path}")
-    return cases
-
-
-def sort_json(file):
-    data = []
-    with open(file, "r", encoding="utf-8") as f:
-        for line in f:
-            data.append(json.loads(line))
-    if "multi_turn" in file and "agent" not in file:
-        data = sorted(
-            data, key=lambda x: tuple(map(int, x["id"].split("_")[-2:]))
-        )
-    else:
-        data = sorted(data, key=lambda x: int(x["id"].split("_")[-1]))
-    with open(file, "w", encoding="utf-8") as f:
-        for entry in data:
-            json.dump(entry, f, ensure_ascii=False)
-            f.write("\n")
-
-
-def generate_single_case(agent_model, test_case, user_model, args):
-    result_path = args.result_path
-
+def generate_single_case(
+    *,
+    args,
+    agent_model: BaseModelInference,
+    test_case: Dict[str, Any],
+    user_model: BaseModelInference | None = None,
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     generation_kwargs = {
         "temperature": args.temperature,
         "top_p": args.top_p,
@@ -187,14 +167,13 @@ def generate_single_case(agent_model, test_case, user_model, args):
         agent_system_prompt = compose_agent_system_prompt(
             category, involved_classes, args.language
         )
-        agent_model.inject_system_prompt(agent_system_prompt)
 
         # Initialize user model by injecting the system prompt.
         if "multi_turn" in test_case:
             user_system_prompt = compose_user_system_prompt()
-            user_model.inject_system_prompt(user_system_prompt)
         else:
             user_model = None
+            user_system_prompt = None
 
         # Initialize the executor.
         executor = Executor(
@@ -205,28 +184,59 @@ def generate_single_case(agent_model, test_case, user_model, args):
 
         dialogue = inference(
             agent_model=agent_model,
+            agent_system_prompt=agent_system_prompt,
             question=test_case["question"],
             functions=test_case["functions"],
-            max_dialog_turns=16,
+            max_dialog_turns=args.max_dialog_turns,
             generation_kwargs=generation_kwargs,
             executor=executor,
             user_model=user_model,
+            user_system_prompt=user_system_prompt,
         )
 
-        write_result(dialogue, result_path, mode="agent")
+        # Obtain `result` from the involved classes' status.
+        class_status = executor.return_exe_class_status
+
+        # Obtain `process` from message (agent to executor) in the dialogue history.
+        agent_fc_query_list = []
+        for dia in dialogue:
+            if dia["recipient"] == "executor":
+                agent_fc_query_list.append(dia["message"]["content"])
+
+        result = {
+            "id": test_id,
+            "result": class_status,
+            "process": agent_fc_query_list,
+        }
 
     else:
         # Initialize agent model by injecting the system prompt.
         if "special" in test_id:
-            agent_system_prompt = compose_special_system_prompt()
+            agent_system_prompt = compose_special_system_prompt(
+                time=test_case.get("time", ""),
+                functions=test_case["functions"],
+                language=args.language,
+            )
         elif "preferences" in test_id:
-            agent_system_prompt = compose_preference_system_prompt()
+            agent_system_prompt = compose_preference_system_prompt(
+                profile=test_case.get("profile", ""),
+                functions=test_case["functions"],
+                language=args.language,
+            )
         else:
-            agent_system_prompt = compose_default_system_prompt()
+            agent_system_prompt = compose_normal_system_prompt(
+                time=test_case.get("time", ""),
+                functions=test_case["functions"],
+                language=args.language,
+            )
 
-        agent_model.inject_system_prompt(agent_system_prompt)
-
-        # Patch: convert the offline multi turn text into chat message format.
+        # TODO: This is a Patch: convert the offline multi turn text into chat message format.
+        # "user: what is the temperature?\nsystem: where?\nuser:in Paris."
+        # [
+        #   {"role": "user", "content": "what is the temperature?"},
+        #   {"role": "assistant", "content": "where?"},
+        #   {"role": "user", "content": "in Paris."},
+        # ]
         if "multi_turn" in test_id:
             agent_message_history = convert_text_to_messages(
                 test_case["question"]
@@ -239,6 +249,7 @@ def generate_single_case(agent_model, test_case, user_model, args):
 
         dialogue = inference(
             agent_model=agent_model,
+            agent_system_prompt=agent_system_prompt,
             question=question,
             functions=test_case["functions"],
             max_dialog_turns=1,
@@ -246,57 +257,92 @@ def generate_single_case(agent_model, test_case, user_model, args):
             agent_message_history=agent_message_history,
         )
 
-        write_result_function_text(dialogue, result_path)
+        # Last dialogue should be from the agent to the executor (null).
+        if dialogue[-1]["recipient"] != "executor":
+            warnings.warn("Last recipient is NOT executor.")
+        agent_fc_query = dialogue[-1]["message"]["content"]
+
+        result = {
+            "id": test_id,
+            "result": agent_fc_query,
+        }
+
+    return result, dialogue
 
 
-def generate_results(args, model_name, test_case, completed_id_set):
+def generate_single_category(
+    *,
+    args,
+    agent_model: BaseModelInference,
+    file_path: str | os.PathLike,
+    result_path: str | os.PathLike,
+    log_path: str | os.PathLike,
+    user_model: BaseModelInference | None = None,
+    completed_id_set: set[str] | None = None,
+):
+    test_cases = []
+    os.makedirs(Path(result_path).parent, exist_ok=True)
+    os.makedirs(Path(log_path).parent, exist_ok=True)
+
+    # Load cases (lines in the input file)
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            test_cases.extend(json.loads(line) for line in file)
+    except FileNotFoundError:
+        print(f"Error: File not found - {file_path}")
+    except json.JSONDecodeError:
+        print(f"Error: Failed to parse JSON in file - {file_path}")
+
+    def has_completed(_test_case: Dict[str, Any]) -> bool:
+        _test_id = _test_case["test_id"]
+        if _test_id in completed_id_set:
+            return True
+        return False
+
     with ThreadPoolExecutor(max_workers=args.num_threads) as executor:
         futures = []
-        for test_case in test_cases_total:
-            if test_case["id"] not in completed_id_set:
-                future = executor.submit(
-                    generate_single_case, model_name, test_case, args
-                )
-                futures.append(future)
+        for test_case in test_cases:
+            if has_completed(test_case):
+                continue
+            future = executor.submit(
+                generate_single_case,
+                args=args,
+                agent_model=agent_model,
+                test_case=test_case,
+                user_model=user_model,
+            )
+            futures.append(future)
 
-        with tqdm(
-            total=len(futures), desc="Processing Tasks", leave=True
-        ) as pbar:
-            for future in as_completed(futures):
-                try:
-                    result = future.result()  # Catch exceptions in tasks
-                    pbar.update(1)
-                except Exception as e:
-                    print(f"Task raised an exception: {e}")
-                    # You can choose whether to continue executing tasks after catching an exception, or to terminate the program
-                    raise
-        print("All tasks have been completed.")
+        # Collect results in original order
+        results, logs = [None] * len(futures), [None] * len(futures)
+        for idx, future in enumerate(futures):
+            # .result() will re-raise exceptions from fun_call, surfacing errors early
+            result, log = future.result()
+            results[idx], logs[idx] = result, log
+
+    # Write the results and logs.
+    with open(result_path, "a", encoding="utf-8") as fp_result:
+        with open(log_path, "a", encoding="utf-8") as fp_log:
+            for result, log in zip(results, logs):
+                fp_result.write(json.dumps(result, ensure_ascii=False) + "\n")
+                fp_log.write(json.dumps(log, ensure_ascii=False) + "\n")
 
 
 def main():
     args = parser()
-
-    if type(args.model) is not list:
-        args.model = [args.model]
-    if type(args.category) is not list:
-        args.category = [args.category]
-
     project_root = os.getenv("PROJECT_ROOT", "./")
 
-    paths = {
-        "zh": {
-            "data_path": "./data_all/data_zh/",
-            "result_path": "./result_all/result_zh/",
-        },
-        "en": {
-            "data_path": "./data_all/data_en/",
-            "result_path": "./result_all/result_en/",
-        },
-    }
-
-    data_path = paths[args.language]["data_path"]
-    result_path = paths[args.language]["result_path"]
-    args.result_path = result_path
+    data_dir = (
+        Path(args.data_dir) if args.data_dir else Path(project_root) / "data"
+    )
+    result_root_dir = (
+        Path(args.result_dir)
+        if args.result_dir
+        else Path(project_root) / "results"
+    )
+    log_root_dir = (
+        Path(args.log_dir) if args.log_dir else Path(project_root) / "logs"
+    )
 
     # Get the filenames of the test cases
     test_names = {
@@ -304,36 +350,67 @@ def main():
         for category in args.category
         for test_name in ACE_DATA_CATEGORY[category]
     }
-    test_files = [f"data_{test_name}.json" for test_name in test_names]
 
-    for model_name in args.model:
-        folder_path = os.path.join(result_path, model_name)
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
+    # Launch the agent model and user model.
+    vllm_kwargs = {
+        "local-model-path": args.local_model_path,
+        "gpu-memory-utilization": args.gpu_memory_utilization,
+        "num_gpus": args.num_gpus,
+        "port": args.port,
+        "model-max-len": args.model_max_len,
+        "dtype": args.dtype,
+    }
+    if args.fc_mode:
+        vllm_kwargs.update(
+            {
+                "additional-args": "--enable-auto-tool-choice --tool-call-parser hermes"
+            }
+        )
 
-        completed_id_set = set()
+    agent_model = Qwen3AgentInference(
+        model_name=args.model_name,
+        vllm_kwargs=vllm_kwargs,
+        fc_mode=args.fc_mode,
+    )
+
+    user_model = UserModelInference(
+        model_name=args.user_model_name,
+        base_url=args.base_url,
+        api_key=args.api_key,
+    )
+
+    for test_category in test_names:
+        data_path = data_dir / args.language / f"data_{test_category}.json"
+        result_path = (
+            result_root_dir
+            / args.model_name
+            / args.language
+            / f"result_{test_category}.json"
+        )
+        log_path = (
+            log_root_dir
+            / args.model_name
+            / args.language
+            / f"log_{test_category}.json"
+        )
+
         # Count the cases that have already been generated to avoid duplication
-        for file in test_names:
-            file_name = f"data_{file}_result.json"
-            file_path = os.path.join(folder_path, file_name)
-            if os.path.exists(file_path):
-                with open(file_path, "r", encoding="utf-8") as f:
-                    for line in f:
-                        line_data = json.loads(line)
-                        completed_id_set.add(line_data["id"])
-        # Read data
-        test_cases_total = load_test_cases(data_path, test_files)
+        completed_id_set = set()
+        if os.path.exists(result_path):
+            with open(result_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line_data = json.loads(line)
+                    completed_id_set.add(line_data["id"])
 
-        if len(test_cases_total) > 0:
-            generate_results(
-                args, model_name, test_cases_total, completed_id_set
-            )
-
-        # Multithreading may disrupt the order of execution, so the result ids need to be reordered
-        for file in test_names:
-            file_name = f"data_{file}_result.json"
-            file_path = os.path.join(folder_path, file_name)
-            sort_json(file_path)
+        generate_single_category(
+            args=args,
+            agent_model=agent_model,
+            file_path=data_path,
+            result_path=result_path,
+            log_path=log_path,
+            user_model=user_model,
+            completed_id_set=completed_id_set,
+        )
 
 
 if __name__ == "__main__":
