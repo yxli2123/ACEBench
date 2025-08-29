@@ -5,7 +5,7 @@ aws ecr get-login-password --region $REGION | sudo docker login --username AWS -
 
 RANDOM_TAG=$(printf '%s' $(echo "$RANDOM" | md5sum) | cut -c 1-24)
 DOCKER_IMAGE_TAG=nemo-eval
-WORKSPACE=/workspace/ACEBench/
+WORKSPACE=/ebs-basemodeling/liyixiao/ACEBench/
 
 sudo docker build \
     --build-arg WORKSPACE=${WORKSPACE} \
@@ -15,12 +15,15 @@ echo "Built docker image nemo-eval:${RANDOM_TAG}"
 
 
 # Change -v /fsx-pretraining:/fsx-pretraining \ if you have different mnt.
-#RANDOM_TAG=nemo-eval:4c5adc1e92abe70ea29ef973
+# -v /ebs-basemodeling:/ebs-basemodeling \
+#export DOCKER_IMAGE_TAG=nemo-eval
+#export RANDOM_TAG=dd5ed4b2fcff2f4c60dbe014
+#export WORKSPACE=/ebs-basemodeling/liyixiao/ACEBench/
 echo "Running docker image nemo-eval:${RANDOM_TAG}"
 sudo docker run --gpus all -p 8661:8661 \
     --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 -it --rm \
     --name=$DOCKER_IMAGE_TAG-${RANDOM_TAG} \
-    -v /fsx-pretraining:/fsx-pretraining \
+    -v /ebs-basemodeling:/ebs-basemodeling \
     -w ${WORKSPACE} \
     --mount type=tmpfs,destination=/tmpfs $DOCKER_IMAGE_TAG:${RANDOM_TAG} \
     bash

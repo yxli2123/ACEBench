@@ -1,10 +1,7 @@
-import os
 from typing import Any, Dict, List
 
 from openai import NOT_GIVEN, OpenAI
 from openai.types.chat import ChatCompletionMessage
-
-DEBUG = os.environ.get("DEBUG", False)
 
 
 class BaseModelInference:
@@ -58,14 +55,6 @@ class BaseModelInference:
 
         # tool_choice="auto": let the model choose between function calls or text outputs.
 
-        # TODO: remove debug
-        # if DEBUG:
-        #     print(20*"=", "functions", 20*"=")
-        #     print(functions)
-        #     print(20 * "=", "messages", 20 * "=")
-        #     for message in messages:
-        #         print(message)
-
         chat_response = self.client.chat.completions.create(
             model=self.model_name,
             messages=messages,
@@ -76,12 +65,6 @@ class BaseModelInference:
             top_p=top_p,
         )
         message = chat_response.choices[0].message
-
-        # if DEBUG:
-        #     print(20 * "=", "messages", 20 * "=")
-        #     for msg in messages:
-        #         print(msg)
-        #     print(message)
 
         return message
 

@@ -203,25 +203,17 @@ class Travel:
     def _load_scenario(self, scenario: dict, long_context=False) -> None:
         pass
 
-    def get_flight_details(
-        self, origin: str = None, destination: str = None
-    ) -> list:
+    def get_flight_details(self, origin: str = None, destination: str = None) -> list:
         """
         Query flight basic information based on origin and destination.
         """
         flights = self.flights
 
         if origin:
-            flights = [
-                flight for flight in flights if flight["origin"] == origin
-            ]
+            flights = [flight for flight in flights if flight["origin"] == origin]
 
         if destination:
-            flights = [
-                flight
-                for flight in flights
-                if flight["destination"] == destination
-            ]
+            flights = [flight for flight in flights if flight["destination"] == destination]
         if len(flights) == 0:
             return "There are no direct flights that meet the criteria."
 
@@ -246,17 +238,13 @@ class Travel:
         """
         user = self.users.get(user_id)
         if user and user["password"] == password:
-            return {
-                key: value for key, value in user.items() if key != "password"
-            }
+            return {key: value for key, value in user.items() if key != "password"}
         return {
             "status": "error",
             "message": "Incorrect username or password.",
         }
 
-    def get_reservation_details(
-        self, reservation_id: str = None, user_id: str = None
-    ) -> list:
+    def get_reservation_details(self, reservation_id: str = None, user_id: str = None) -> list:
         """
         Query reservation information based on reservation ID or user ID, including basic flight information.
         """
@@ -323,9 +311,7 @@ class Travel:
         return allowance.get(membership_level, {}).get(cabin_class, 0)
 
     # 查询中转航班
-    def find_transfer_flights(
-        self, origin_city, transfer_city, destination_city
-    ):
+    def find_transfer_flights(self, origin_city, transfer_city, destination_city):
         """
         Find connecting flights from origin city to destination city via transfer city,
         ensuring the first flight's arrival time is earlier than the second flight's departure time.
@@ -357,9 +343,7 @@ class Travel:
 
         # Check each combination of first and second leg flights for valid connections
         for first_flight in first_leg_flights:
-            first_arrival = datetime.strptime(
-                first_flight["arrival_time"], "%Y-%m-%d %H:%M:%S"
-            )
+            first_arrival = datetime.strptime(first_flight["arrival_time"], "%Y-%m-%d %H:%M:%S")
 
             for second_flight in second_leg_flights:
                 second_departure = datetime.strptime(
@@ -381,9 +365,7 @@ class Travel:
         else:
             return "No connecting flights that meet the criteria were found."
 
-    def calculate_baggage_fee(
-        self, membership_level, cabin_class, baggage_count
-    ):
+    def calculate_baggage_fee(self, membership_level, cabin_class, baggage_count):
         free_baggage = {
             "regular": {"Economy Class": 1, "Business Class": 2},
             "silver": {"Economy Class": 2, "Business Class": 3},
@@ -427,26 +409,16 @@ class Travel:
 
         # Check flight and seats availability
         flight = next(
-            (
-                f
-                for f in self.flights
-                if f["flight_no"] == flight_no and f["status"] == "available"
-            ),
+            (f for f in self.flights if f["flight_no"] == flight_no and f["status"] == "available"),
             None,
         )
 
         # Calculate flight price
-        price = (
-            flight["economy_price"]
-            if cabin == "Economy Class"
-            else flight["business_price"]
-        )
+        price = flight["economy_price"] if cabin == "Economy Class" else flight["business_price"]
         total_cost = price
 
         # Calculate baggage fee
-        baggage_fee = self.calculate_baggage_fee(
-            user["membership_level"], cabin, baggage_count
-        )
+        baggage_fee = self.calculate_baggage_fee(user["membership_level"], cabin, baggage_count)
         total_cost += baggage_fee
 
         # Check payment method
@@ -492,8 +464,7 @@ class Travel:
             (
                 r
                 for r in self.reservations
-                if r["reservation_id"] == reservation_id
-                and r["user_id"] == user_id
+                if r["reservation_id"] == reservation_id and r["user_id"] == user_id
             ),
             None,
         )
@@ -502,22 +473,14 @@ class Travel:
 
         # Check current flight information
         current_flight = next(
-            (
-                f
-                for f in self.flights
-                if f["flight_no"] == reservation["flight_no"]
-            ),
+            (f for f in self.flights if f["flight_no"] == reservation["flight_no"]),
             None,
         )
         if not current_flight:
             return "Flight information not found."
 
         # Get original payment method or new provided payment method
-        payment_method = (
-            new_payment_method
-            if new_payment_method
-            else reservation["payment_method"]
-        )
+        payment_method = new_payment_method if new_payment_method else reservation["payment_method"]
         user = self.users[user_id]
         if not user:
             return "User information not found."
@@ -539,7 +502,9 @@ class Travel:
                 reservation["flight_no"] = new_flight_no
                 result_messages.append("Flight number has been changed.")
             else:
-                return "Flight change failed: Invalid new flight number or destination does not match."
+                return (
+                    "Flight change failed: Invalid new flight number or destination does not match."
+                )
 
         # Update cabin if provided and calculate price difference
         if new_cabin and new_cabin != reservation.get("cabin"):
@@ -549,9 +514,7 @@ class Travel:
             reservation["cabin"] = new_cabin
             if price_difference > 0:
                 # Deduct price difference
-                if self.update_balance(
-                    user, payment_method, -price_difference
-                ):
+                if self.update_balance(user, payment_method, -price_difference):
                     result_messages.append(
                         f"Cabin change successful. Price difference paid: {price_difference}."
                     )
@@ -569,9 +532,7 @@ class Travel:
         # Add checked baggage, check free allowance and calculate fees
         if add_baggage > 0:
             membership = user["membership_level"]
-            max_free_baggage = self.get_baggage_allowance(
-                membership, reservation["cabin"]
-            )
+            max_free_baggage = self.get_baggage_allowance(membership, reservation["cabin"])
             current_baggage = reservation.get("baggage", 0)
             total_baggage = current_baggage + add_baggage
             extra_baggage = max(0, total_baggage - max_free_baggage)
@@ -590,9 +551,7 @@ class Travel:
 
         # Return final result
         if not result_messages:
-            result_messages.append(
-                "Modification completed with no additional fees."
-            )
+            result_messages.append("Modification completed with no additional fees.")
         return " ".join(result_messages)
 
     def cancel_reservation(self, user_id, reservation_id, reason):
@@ -608,8 +567,7 @@ class Travel:
             (
                 r
                 for r in self.reservations
-                if r["reservation_id"] == reservation_id
-                and r["user_id"] == user_id
+                if r["reservation_id"] == reservation_id and r["user_id"] == user_id
             ),
             None,
         )
@@ -618,20 +576,14 @@ class Travel:
 
         # Check if flight information exists
         flight = next(
-            (
-                f
-                for f in self.flights
-                if f["flight_no"] == reservation["flight_no"]
-            ),
+            (f for f in self.flights if f["flight_no"] == reservation["flight_no"]),
             None,
         )
         if not flight:
             return "Invalid flight information."
 
         # Check if the flight has already departed
-        depart_time = datetime.strptime(
-            flight["depart_time"], "%Y-%m-%d %H:%M:%S"
-        )
+        depart_time = datetime.strptime(flight["depart_time"], "%Y-%m-%d %H:%M:%S")
         if current_time > depart_time:
             return "The flight segment has been used and cannot be canceled."
 
@@ -662,9 +614,7 @@ class Travel:
 
         else:
             # If not eligible for free cancellation, set a cancellation fee as needed
-            cancel_fee = (
-                flight_price * 0.1
-            )  # Assume a cancellation fee of 10% of the ticket price
+            cancel_fee = flight_price * 0.1  # Assume a cancellation fee of 10% of the ticket price
             refund_amount = flight_price - cancel_fee
             self.process_refund(user, refund_amount)
             return f"Less than 24 hours before departure. A cancellation fee of {cancel_fee} yuan has been deducted, and {refund_amount} yuan has been refunded."

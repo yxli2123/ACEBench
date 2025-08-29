@@ -1,9 +1,8 @@
 import ast
 import json
-import os
+import re
 import warnings
-
-DEBUG = os.environ.get("DEBUG", False)
+from typing import Any, Dict, List, Tuple
 
 
 def decode_ast(result, language="Python"):
@@ -52,16 +51,11 @@ def resolve_ast_by_type(value):
         output = [resolve_ast_by_type(v) for v in value.elts]
     elif isinstance(value, ast.Dict):
         output = {
-            resolve_ast_by_type(k): resolve_ast_by_type(v)
-            for k, v in zip(value.keys, value.values)
+            resolve_ast_by_type(k): resolve_ast_by_type(v) for k, v in zip(value.keys, value.values)
         }
-    elif isinstance(
-        value, ast.NameConstant
-    ):  # Added this condition to handle boolean values
+    elif isinstance(value, ast.NameConstant):  # Added this condition to handle boolean values
         output = value.value
-    elif isinstance(
-        value, ast.BinOp
-    ):  # Added this condition to handle function calls as arguments
+    elif isinstance(value, ast.BinOp):  # Added this condition to handle function calls as arguments
         output = eval(ast.unparse(value))
     elif isinstance(value, ast.Name):
         output = value.id
@@ -88,17 +82,12 @@ def resolve_ast_by_type(value):
     elif isinstance(value, ast.Subscript):
         try:
             output = ast.unparse(value.body[0].value)
-        except:
-            output = (
-                ast.unparse(value.value) + "[" + ast.unparse(value.slice) + "]"
-            )
+        except Exception:
+            output = ast.unparse(value.value) + "[" + ast.unparse(value.slice) + "]"
     else:
         raise Exception(f"Unsupported AST type: {type(value)}")
     return output
 
-
-import re
-from typing import Any, Dict, List, Tuple
 
 # ---------- Validators / helpers ----------
 
@@ -132,9 +121,7 @@ def _ast_to_dotted_name(node: ast.AST) -> str:
             parts.append(cur.attr)
             cur = cur.value
             continue
-        raise ValueError(
-            "Only simple or dotted names are allowed for function calls."
-        )
+        raise ValueError("Only simple or dotted names are allowed for function calls.")
     parts.reverse()
     dotted = ".".join(parts)
     if not _is_valid_dotted(dotted):
@@ -193,9 +180,7 @@ def calls_to_pystr(
         if not isinstance(call, dict):
             raise TypeError(f"Call #{idx} must be a dict.")
         if "name" not in call or "arguments" not in call:
-            raise ValueError(
-                f"Call #{idx} must contain 'name' and 'arguments'."
-            )
+            raise ValueError(f"Call #{idx} must contain 'name' and 'arguments'.")
 
         name = call["name"]
         kwargs = call["arguments"]
@@ -207,14 +192,10 @@ def calls_to_pystr(
             try:
                 kwargs = json.loads(kwargs)
             except Exception as e:
-                warnings.warn(
-                    f"Failed to decode JSON str as dict.\n\n{e}\n\n{kwargs}"
-                )
+                warnings.warn(f"Failed to decode JSON str as dict.\n\n{e}\n\n{kwargs}")
 
         if not isinstance(kwargs, dict):
-            raise TypeError(
-                f"'arguments' for call #{idx} must be a dict, but got {type(kwargs)}"
-            )
+            raise TypeError(f"'arguments' for call #{idx} must be a dict, but got {type(kwargs)}")
 
         items: List[Tuple[str, Any]] = list(kwargs.items())
         if sort_keys:
@@ -224,9 +205,7 @@ def calls_to_pystr(
         kw_parts: List[str] = []
         for k, v in items:
             if not isinstance(k, str) or not _is_valid_ident(k):
-                raise ValueError(
-                    f"Invalid argument name {k!r} in call to {name!r}."
-                )
+                raise ValueError(f"Invalid argument name {k!r} in call to {name!r}.")
             kw_parts.append(f"{k}={_value_to_literal_str(v)}")
 
         call_strs.append(f"{name}({', '.join(kw_parts)})")
@@ -255,16 +234,10 @@ def pystr_to_calls(s: str) -> List[Dict[str, Any]]:
     try:
         expr = ast.parse(s, mode="eval")
     except SyntaxError as e:
-        raise ValueError(
-            "Input is not a valid Python expression of calls in a list."
-        ) from e
+        raise ValueError("Input is not a valid Python expression of calls in a list.") from e
 
-    if not isinstance(expr, ast.Expression) or not isinstance(
-        expr.body, ast.List
-    ):
-        raise ValueError(
-            "Top-level expression must be a Python list of function calls."
-        )
+    if not isinstance(expr, ast.Expression) or not isinstance(expr.body, ast.List):
+        raise ValueError("Top-level expression must be a Python list of function calls.")
 
     out: List[Dict[str, Any]] = []
     for i, elt in enumerate(expr.body.elts):
@@ -273,9 +246,7 @@ def pystr_to_calls(s: str) -> List[Dict[str, Any]]:
 
         # Disallow positional args
         if elt.args:
-            raise ValueError(
-                f"Call #{i} must use only keyword arguments (found positional args)."
-            )
+            raise ValueError(f"Call #{i} must use only keyword arguments (found positional args).")
 
         # Disallow **kwargs / *args
         for kw in elt.keywords:
@@ -289,9 +260,7 @@ def pystr_to_calls(s: str) -> List[Dict[str, Any]]:
         args_dict: Dict[str, Any] = {}
         for kw in elt.keywords:
             if not _is_valid_ident(kw.arg):
-                raise ValueError(
-                    f"Invalid argument name {kw.arg!r} in call #{i}."
-                )
+                raise ValueError(f"Invalid argument name {kw.arg!r} in call #{i}.")
             args_dict[kw.arg] = _literal_eval_node(kw.value)
 
         out.append({"name": func_name, "arguments": args_dict})

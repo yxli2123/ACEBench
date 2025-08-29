@@ -13,8 +13,6 @@ from model_inference.multi_turn.APIModel_agent import APIAgent_turn
 from model_inference.multi_turn.APIModel_user import APIUSER
 from model_inference.multi_turn.execution_role import EXECUTION
 from model_inference.multi_turn.multi_turn_scene import Scene
-from model_inference.prompt.prompt_en import *
-from model_inference.prompt.prompt_zh import *
 
 SAVED_CLASS = {
     "BaseApi": ["wifi", "logged_in"],
@@ -46,9 +44,7 @@ class APIModelInference(BaseHandler):
         user_model="gpt-4o",
         language="zh",
     ) -> None:
-        super().__init__(
-            model_name, model_path, temperature, top_p, max_tokens, language
-        )
+        super().__init__(model_name, model_path, temperature, top_p, max_tokens, language)
 
         load_dotenv()
 
@@ -95,14 +91,10 @@ class APIModelInference(BaseHandler):
             return result, process_list
 
         else:
-            result = self.single_turn_inference(
-                question, functions, category, time, profile, id
-            )
+            result = self.single_turn_inference(question, functions, category, time, profile, id)
             return result
 
-    def single_turn_inference(
-        self, question, functions, test_category, time, profile, id
-    ):
+    def single_turn_inference(self, question, functions, test_category, time, profile, id):
         if self.language == "zh":
             if "special" in test_category:
                 system_prompt = SYSTEM_PROMPT_FOR_SPECIAL_DATA_ZH.format(
@@ -216,9 +208,7 @@ class APIModelInference(BaseHandler):
 
         result_instance_list = []
         mile_stone = []
-        with tqdm(
-            total=self.max_dialog_turns, desc="Processing Messages"
-        ) as pbar:
+        with tqdm(total=self.max_dialog_turns, desc="Processing Messages") as pbar:
             for index in range(self.max_dialog_turns):
                 last_recipient = message_history[-1]["recipient"]
                 if last_recipient == "user":
@@ -233,19 +223,14 @@ class APIModelInference(BaseHandler):
                     inference_message = scene.get_inference_message()
                     mile_stone_message = message_history[-1]["message"]
                     mile_stone.append(mile_stone_message)
-                    current_message, result_instance = execution.respond(
-                        message_history
-                    )
+                    current_message, result_instance = execution.respond(message_history)
                     if isinstance(result_instance, dict):
                         if result_instance not in result_instance_list:
                             result_instance_list.append(result_instance)
 
                 scene.add_dialogue(current_message)
 
-                if (
-                    index > 1
-                    and "finish conversation" in current_message["message"]
-                ):
+                if index > 1 and "finish conversation" in current_message["message"]:
                     break
                 pbar.update(1)
             scene.write_message_history(test_id, self.model_name)
@@ -270,9 +255,7 @@ class APIModelInference(BaseHandler):
         test_id,
         time,
     ):
-        agent = APIAgent_step(
-            model_name=self.model_name, time=time, functions=functions
-        )
+        agent = APIAgent_step(model_name=self.model_name, time=time, functions=functions)
         scene = Mulit_Step_Scene(
             question=question,
             initial_state=initial_config,
@@ -292,9 +275,7 @@ class APIModelInference(BaseHandler):
 
         result_instance_list = []
         mile_stone = []
-        with tqdm(
-            total=self.max_dialog_turns, desc="Processing Messages"
-        ) as pbar:
+        with tqdm(total=self.max_dialog_turns, desc="Processing Messages") as pbar:
             for index in range(self.max_dialog_turns):
                 last_sender = message_history[-1]["sender"]
                 if index == 0 or last_sender == "execution":
@@ -302,9 +283,7 @@ class APIModelInference(BaseHandler):
                     current_message = agent.respond(inference_message)
                 else:
                     # Catch exceptions from execution.respond(message_history)
-                    current_message, result_instance = execution.respond(
-                        message_history
-                    )
+                    current_message, result_instance = execution.respond(message_history)
                     mile_stone_message = message_history[-1]["message"]
                     mile_stone.append(mile_stone_message)
                     if result_instance not in result_instance_list:
@@ -312,10 +291,7 @@ class APIModelInference(BaseHandler):
 
                 scene.add_dialogue(current_message)
 
-                if (
-                    index > 1
-                    and "finish conversation" in current_message["message"]
-                ):
+                if index > 1 and "finish conversation" in current_message["message"]:
                     break
                 pbar.update(1)
 

@@ -55,7 +55,5 @@ inference_map_groups = {
 
 
 inference_map = {
-    model: handler
-    for handler, models in inference_map_groups.items()
-    for model in models
+    model: handler for handler, models in inference_map_groups.items() for model in models
 }

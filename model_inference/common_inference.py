@@ -1,11 +1,8 @@
-import os
 from typing import Any, Dict, List
 
 from .executor import Executor
 from .model_base import BaseModelInference
 from .utils import tool_output_to_message
-
-DEBUG = os.environ.get("DEBUG", False)
 
 
 def convert_messages_to_dialogue(
@@ -97,20 +94,14 @@ def inference(
 
     # Initialization
     dialogue_history: List[Dict[str, Any]] = (
-        []
-        if agent_message_history is None
-        else convert_messages_to_dialogue(agent_message_history)
+        [] if agent_message_history is None else convert_messages_to_dialogue(agent_message_history)
     )
 
     # Handle agent_message_history is None or agent_message_history = []
     if not agent_message_history:
-        agent_message_history = [
-            {"role": "system", "content": agent_system_prompt}
-        ]
+        agent_message_history = [{"role": "system", "content": agent_system_prompt}]
     elif agent_message_history[0]["role"] != "system":
-        agent_message_history.insert(
-            0, {"role": "system", "content": agent_system_prompt}
-        )
+        agent_message_history.insert(0, {"role": "system", "content": agent_system_prompt})
 
     # Initial turn.
     # Single turn or multi step modes.
@@ -126,9 +117,9 @@ def inference(
             if user_model_generation_kwargs is None
             else user_model_generation_kwargs
         )
-        user_init_query = user_model.generate(
-            user_message_history, user_model_generation_kwargs
-        )["message"]
+        user_init_query = user_model.generate(user_message_history, user_model_generation_kwargs)[
+            "message"
+        ]
         user_message_history.append(
             {
                 "role": "assistant",
@@ -167,18 +158,17 @@ def inference(
             dialogue_history.append(current_dialogue)
 
         elif current_recipient == "user":
-            user_message_history.append(
-                {
-                    "role": "user",
-                    "content": current_message["content"],
-                }
-            )
-
             # Stop the dialogue if 'finish conversation' is detected.
             if "Conversation finished." in current_message["content"]:
                 break
             # Otherwise, continue the turn if the user model is not None (multi-turn mode).
             elif user_model is not None:
+                user_message_history.append(
+                    {
+                        "role": "user",
+                        "content": current_message["content"],
+                    }
+                )
                 current_dialogue = user_model.generate(
                     messages=user_message_history,
                     generation_kwargs=user_model_generation_kwargs,
@@ -203,9 +193,7 @@ def inference(
                     {
                         "sender": "executor",
                         "recipient": "agent",
-                        "message": tool_output_to_message(
-                            tool_calls, tool_output_list
-                        ),
+                        "message": tool_output_to_message(tool_calls, tool_output_list),
                     }
                 )
             else:
@@ -215,4 +203,9 @@ def inference(
                 "Unknown recipient type. Only `user`, `agent` , and `executor` are supported."
             )
 
+    print(20 * "=", "Dialogue history", 20 * "=")
+    for idx, dialogue in enumerate(dialogue_history):
+        print(
+            f"#{idx + 1:<2} | {dialogue['sender']:<8} --> {dialogue['recipient']:<8}: {dialogue['message']}"
+        )
     return dialogue_history

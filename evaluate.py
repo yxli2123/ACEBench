@@ -1,10 +1,6 @@
-import sys
-from os import PathLike
-from typing import List
-
-sys.path.append("../")
-
 import argparse
+from pathlib import Path
+from typing import List
 
 from category import ACE_DATA_CATEGORY
 from model_eval.checker import *
@@ -12,12 +8,8 @@ from model_eval.evaluation_helper import *
 from model_eval.utils import *
 from model_inference.utils import decode_ast
 
-RESULT_TABLE = {}
 
-
-def normal_single_turn_eval(
-    model_result, prompt, possible_answer, test_category, score_path
-):
+def normal_single_turn_eval(model_result, prompt, possible_answer, test_category, score_path):
     if not all(len(x) == len(model_result) for x in [prompt, possible_answer]):
         raise ValueError(
             f"The length of the model result ({len(model_result)}) does not match "
@@ -43,9 +35,7 @@ def normal_single_turn_eval(
                 {
                     "id": id,
                     "valid": False,
-                    "error": [
-                        f"Invalid syntax. Failed to decode AST. {str(e)}"
-                    ],
+                    "error": [f"Invalid syntax. Failed to decode AST. {str(e)}"],
                     "error_type": "wrong_output_format",
                     "model_result_raw": model_result_item_raw,
                     "possible_answer": possible_answer_item,
@@ -60,9 +50,7 @@ def normal_single_turn_eval(
                 {
                     "id": id,
                     "valid": False,
-                    "error": [
-                        "The output format does not meet the specified requirements."
-                    ],
+                    "error": ["The output format does not meet the specified requirements."],
                     "error_type": "wrong_output_format",
                     "model_result": str(model_result_item_raw),
                     "possible_answer": possible_answer_item,
@@ -162,9 +150,7 @@ def normal_multi_turn_eval(
                     "id": id,
                     "turn": turn,
                     "valid": False,
-                    "error": [
-                        f"Invalid syntax. Failed to decode AST. {str(e)}"
-                    ],
+                    "error": [f"Invalid syntax. Failed to decode AST. {str(e)}"],
                     "error_type": "wrong_output_format",
                     "model_result": model_result_item_raw,
                     "possible_answer": possible_answer_item_,
@@ -179,9 +165,7 @@ def normal_multi_turn_eval(
                 score_list[-1]["valid"].append(False)
                 score_list[-1]["number"] = item
             else:
-                score_list.append(
-                    {"turn": turn, "number": item, "valid": [False]}
-                )
+                score_list.append({"turn": turn, "number": item, "valid": [False]})
             continue
         # Check if the output format meets the requirements
         decoder_output_valid = is_function_call_format_valid(model_result_item)
@@ -192,9 +176,7 @@ def normal_multi_turn_eval(
                     "id": id,
                     "turn": turn,
                     "valid": False,
-                    "error": [
-                        "The output format does not meet the specified requirements."
-                    ],
+                    "error": ["The output format does not meet the specified requirements."],
                     "error_type": "wrong_output_format",
                     "model_result": str(model_result_item),
                     "possible_answer": possible_answer_item_,
@@ -207,9 +189,7 @@ def normal_multi_turn_eval(
                 score_list[-1]["valid"].append(False)
                 score_list[-1]["number"] = item
             else:
-                score_list.append(
-                    {"turn": turn, "number": item, "valid": [False]}
-                )
+                score_list.append({"turn": turn, "number": item, "valid": [False]})
             continue
 
         if type(possible_answer_item_) != list:
@@ -514,10 +494,7 @@ def agent_eval_process(
                 for stone in call_process_item:
                     # Start searching from the current index until the corresponding call_process element is found
                     while current_index < result_len:
-                        if (
-                            model_result[current_index].strip()
-                            == stone.strip()
-                        ):
+                        if model_result[current_index].strip() == stone.strip():
                             result_indices.append(current_index)
                             current_index += 1
                             break
@@ -560,7 +537,9 @@ def agent_eval_process(
                 while current_index < result_len:
                     if model_result[current_index].strip() == stone.strip():
                         result_indices.append(current_index)
-                        current_index += 1  # Update position and continue searching for the next stone
+                        current_index += (
+                            1  # Update position and continue searching for the next stone
+                        )
                         break
                     current_index += 1
 
@@ -613,11 +592,12 @@ def agent_eval_process(
 
 #### Main evaluate function ####
 def evaluate(
-    data_dir: PathLike,
-    result_dir: PathLike,
+    data_dir,
+    result_dir,
     categories: List[str],
-    score_dir: PathLike,
+    score_dir,
 ):
+    score_all = {}
     for category in categories:
         print(f"🔍 Running test: {category}")
 
@@ -629,9 +609,7 @@ def evaluate(
         prompt_path = os.path.join(data_dir, f"data_{category}.json")
         prompt = load_file(prompt_path)
 
-        possible_answer_path = os.path.join(
-            data_dir, "possible_answer", f"data_{category}.json"
-        )
+        possible_answer_path = os.path.join(data_dir, "possible_answer", f"data_{category}.json")
         possible_answer = load_file(possible_answer_path)
 
         if "special" in category:
@@ -642,6 +620,7 @@ def evaluate(
                 category,
                 score_path,
             )
+            score_all.update({category: {"accuracy": accuracy}})
             print(f"✔️ Test '{category}' is done! 🚀 Accuracy: {accuracy}.")
 
         elif "agent" in category:
@@ -651,6 +630,14 @@ def evaluate(
                 possible_answer,
                 category,
                 score_path,
+            )
+            score_all.update(
+                {
+                    category: {
+                        "end_to_end_accuracy": end_accuracy,
+                        "process_accuracy": process_accuracy,
+                    }
+                }
             )
             print(
                 f"✔️ Test '{category}' is done! | End_to_End Accuracy: {end_accuracy} | Process Accuracy: {process_accuracy}"
@@ -664,6 +651,7 @@ def evaluate(
                 category,
                 score_path,
             )
+            score_all.update({category: {"end_to_end_accuracy": end_accuracy}})
             print(f"✔️ Test '{category}' is done! | Accuracy: {end_accuracy}")
 
         else:
@@ -674,30 +662,23 @@ def evaluate(
                 category,
                 score_path,
             )
+            score_all.update({category: {"accuracy": accuracy}})
             print(f"✔️ Test '{category}' is done! | Accuracy: {accuracy}")
 
-    update_result_table_with_score_file(RESULT_TABLE, OUTPUT_PATH)
-    generate_result_csv(RESULT_TABLE, OUTPUT_PATH)
-
-
-def get_paths(language):
-    base_paths = {
-        "zh": {
-            "OUTPUT_PATH": "./score_all/score_zh/",
-        },
-        "en": {
-            "OUTPUT_PATH": "./score_all/score_en/",
-        },
-    }
-    return base_paths.get(language)
+    score_all_path = os.path.join(score_dir, "score_all.json")
+    if os.path.exists(score_all_path):
+        current_score_all = load_file(score_all_path)
+        current_score_all.update(score_all)
+    else:
+        current_score_all = score_all
+    with open(score_all_path, "w", encoding="utf-8") as fp:
+        json.dump(current_score_all, fp, ensure_ascii=False)
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Process two lists of strings."
-    )
+    parser = argparse.ArgumentParser(description="ACEBench Evaluaton.")
 
-    parser.add_argument("--language", type=str, default="zh")
+    parser.add_argument("--language", type=str, default="en")
     parser.add_argument(
         "--model-name",
         type=str,
@@ -710,9 +691,15 @@ def main():
         help="A list of model names to evaluate",
     )
     parser.add_argument(
-        "--result-root-dir",
+        "--result-dir",
         type=str,
         default="./results/",
+        help="A list of model names to evaluate",
+    )
+    parser.add_argument(
+        "--score-dir",
+        type=str,
+        default="./score/",
         help="A list of model names to evaluate",
     )
     parser.add_argument(
@@ -724,13 +711,6 @@ def main():
 
     args = parser.parse_args()
 
-    paths = get_paths(args.language)
-
-    if paths:
-        OUTPUT_PATH = paths["OUTPUT_PATH"]
-
-    language = args.language
-
     # Extract test categories
     test_categories = [
         category
@@ -738,13 +718,12 @@ def main():
         for category in (ACE_DATA_CATEGORY.get(test_category, [test_category]))
     ]
 
-    result_dir = os.path.join(
-        args.result_root_dir, args.model_name, args.language
-    )
-    data_dir = os.path.join(args.data_dir, args.language)
-    score_dir = os.path.join(
-        args.score_root_dir, args.model_name, args.language
-    )
+    result_dir = Path(args.result_dir) / args.model_name / args.language
+    data_dir = Path(args.data_dir) / args.language
+    score_dir = Path(args.score_dir) / args.model_name / args.language
+    score_all_path = score_dir / "score_all.json"
+
+    os.makedirs(score_dir, exist_ok=True)
 
     # Call the main function
     evaluate(
@@ -755,6 +734,7 @@ def main():
     )
 
     print(f"Models being evaluated: {args.model_name}")
+    print(f"Saved scores to: {score_all_path}")
     print(f"Test categories being used: {test_categories}")
 
 

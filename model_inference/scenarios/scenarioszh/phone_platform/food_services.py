@@ -51,9 +51,7 @@ class FoodPlatform(BaseApi):
         }
 
         # 设置六个商家及其菜单
-        self.merchant_list: Dict[
-            str, Dict[str, Union[str, List[Dict[str, Union[str, float]]]]]
-        ] = {
+        self.merchant_list: Dict[str, Dict[str, Union[str, List[Dict[str, Union[str, float]]]]]] = {
             "达美乐": {
                 "merchant_id": "M100",
                 "service_type": "Pizza",
@@ -115,9 +113,7 @@ class FoodPlatform(BaseApi):
         self.logged_in_users = scenario.get("logged_in_users", [])
 
     # 用户登录功能
-    def login_food_platform(
-        self, username: str, password: str
-    ) -> Dict[str, Union[bool, str]]:
+    def login_food_platform(self, username: str, password: str) -> Dict[str, Union[bool, str]]:
         if self.wifi == False:
             return {"status": False, "message": "wifi未打开，无法登录"}
         if username not in self.users:
@@ -222,9 +218,7 @@ class FoodPlatform(BaseApi):
             "message": f"外卖订单成功下单给 {merchant_name}，总金额为 {total_price} 元",
         }
 
-    def get_products(
-        self, merchant_name: str
-    ) -> Union[List[Dict[str, Union[str, float]]], str]:
+    def get_products(self, merchant_name: str) -> Union[List[Dict[str, Union[str, float]]], str]:
         """
         查询特定商家的商品列表。
 
@@ -251,9 +245,7 @@ class FoodPlatform(BaseApi):
         Returns:
             Dict[str, Union[bool, str, List[Dict[str, Union[str, int, float]]]]]: 用户的订单列表。
         """
-        user_orders = [
-            order for order in self.orders if order["user_name"] == user_name
-        ]
+        user_orders = [order for order in self.orders if order["user_name"] == user_name]
 
         if not user_orders:
             return {"status": False, "message": "用户没有订单记录"}
@@ -275,10 +267,7 @@ class FoodPlatform(BaseApi):
             order
             for order in self.orders
             if keyword.lower() in order["merchant_name"].lower()
-            or any(
-                keyword.lower() in item.lower()
-                for item in order.get("items", [])
-            )
+            or any(keyword.lower() in item.lower() for item in order.get("items", []))
         ]
 
         if not matched_orders:

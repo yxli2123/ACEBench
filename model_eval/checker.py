@@ -147,9 +147,7 @@ def string_checker(
     return {"valid": True, "error": []}
 
 
-def list_checker(
-    param: str, model_output: list, possible_answer: list, func_name
-):
+def list_checker(param: str, model_output: list, possible_answer: list, func_name):
     # Convert the tuple to a list
 
     standardize_model_output = list(model_output)
@@ -163,9 +161,7 @@ def list_checker(
 
     for i in range(len(possible_answer)):
         if type(possible_answer[i]) == str:
-            standardize_possible_answer.append(
-                standardize_string(possible_answer[i])
-            )
+            standardize_possible_answer.append(standardize_string(possible_answer[i]))
         else:
             standardize_possible_answer.append(possible_answer[i])
 
@@ -181,9 +177,7 @@ def list_checker(
     return {"valid": True, "error": []}
 
 
-def dict_checker(
-    param: str, model_output: dict, possible_answers: list, func_name
-):
+def dict_checker(param: str, model_output: dict, possible_answers: list, func_name):
     # This function works for simple dictionaries, as well as dictionaries with nested dictionaries
 
     result = {"valid": True, "error": [], "error_type": "dict_checker:unclear"}
@@ -233,26 +227,16 @@ def dict_checker(
                 standardize_possible_answer = []
 
                 if type(possible_answer[key]) == str:
-                    standardize_possible_answer.append(
-                        standardize_string(possible_answer[key])
-                    )
+                    standardize_possible_answer.append(standardize_string(possible_answer[key]))
                 else:
                     if type(possible_answer[key]) == dict:
-                        standardize_possible_answer.append(
-                            flatten_dates(possible_answer[key])
-                        )
+                        standardize_possible_answer.append(flatten_dates(possible_answer[key]))
                     else:
-                        standardize_possible_answer.append(
-                            possible_answer[key]
-                        )
+                        standardize_possible_answer.append(possible_answer[key])
 
                 if isinstance(standardize_possible_answer, list):
-                    standardize_possible_answer = standardize_possible_answer[
-                        0
-                    ]
-                if str(standardize_possible_answer) not in str(
-                    standardize_value
-                ):
+                    standardize_possible_answer = standardize_possible_answer[0]
+                if str(standardize_possible_answer) not in str(standardize_value):
                     result["valid"] = False
                     result["error"] = [
                         f"wrong value for parameter ({param}) of api ({func_name}): [excepted: {possible_answer}, real: [{model_output}]]"
@@ -263,9 +247,7 @@ def dict_checker(
     return result
 
 
-def list_dict_checker(
-    param: str, model_output: list, possible_answers: list, func_name
-):
+def list_dict_checker(param: str, model_output: list, possible_answers: list, func_name):
     result = {
         "valid": True,
         "error": [],
@@ -312,15 +294,9 @@ def simple_function_checker(
     # When the function's reference parameter is empty, such as APIname()
     possible_answer = list(possible_answers.values())[0]
 
-    if (
-        list(model_output.values())[0] == {}
-        and func_description["parameters"] == {}
-    ):
+    if list(model_output.values())[0] == {} and func_description["parameters"] == {}:
         return result
-    elif (
-        list(model_output.values())[0] == {}
-        or func_description["parameters"] == {}
-    ):
+    elif list(model_output.values())[0] == {} or func_description["parameters"] == {}:
         result["valid"] = False
         result["error_type"] = "wrong_param"
         return result
@@ -375,15 +351,11 @@ def simple_function_checker(
 
         full_param_details = param_details[param]
         # Parameter type when the function is defined
-        expected_type_description = full_param_details[
-            "type"
-        ]  # This is a string
+        expected_type_description = full_param_details["type"]  # This is a string
         is_variable = False
         nested_type_converted = None
 
-        expected_type_converted = PYTHON_TYPE_MAPPING[
-            expected_type_description
-        ]
+        expected_type_converted = PYTHON_TYPE_MAPPING[expected_type_description]
         # Handle special data types?
         if expected_type_description in PYTHON_NESTED_TYPE_CHECK_LIST:
             try:
@@ -425,9 +397,7 @@ def simple_function_checker(
         if not is_variable:
             # Special handle for dictionaries
             if expected_type_converted == dict:
-                result = dict_checker(
-                    param, value, possible_answer[param], func_name
-                )
+                result = dict_checker(param, value, possible_answer[param], func_name)
                 if not result["valid"]:
                     result = {
                         "valid": False,
@@ -437,17 +407,12 @@ def simple_function_checker(
                     return result
 
             # Special category object_array
-            elif (
-                expected_type_converted == list
-                and nested_type_converted == dict
-            ):
+            elif expected_type_converted == list and nested_type_converted == dict:
                 if expected_type_description == "objectArray":
                     if len(value) != len(possible_answer[param]):
                         result = {
                             "valid": False,
-                            "error": [
-                                "Wrong number of parameters for dictionary."
-                            ],
+                            "error": ["Wrong number of parameters for dictionary."],
                             "error_type": "value_error:dict_items",
                         }
                         return result
@@ -465,9 +430,7 @@ def simple_function_checker(
                         }
                         return result
 
-                result = list_dict_checker(
-                    param, value, possible_answer[param], func_name
-                )
+                result = list_dict_checker(param, value, possible_answer[param], func_name)
                 if not result["valid"]:
                     result = {
                         "valid": False,
@@ -496,9 +459,7 @@ def simple_function_checker(
                     return result
 
             elif expected_type_converted == list:
-                result = list_checker(
-                    param, value, possible_answer[param], func_name
-                )
+                result = list_checker(param, value, possible_answer[param], func_name)
                 if not result["valid"]:
                     result = {
                         "valid": False,
@@ -553,9 +514,7 @@ def normal_checker(
         if name not in answer_list:
             result = {
                 "valid": False,
-                "error": [
-                    f"extra function detected: {name} is not in the ground truth"
-                ],
+                "error": [f"extra function detected: {name} is not in the ground truth"],
                 "error_type": "function_mismatch",
             }
             return result
@@ -564,9 +523,7 @@ def normal_checker(
         if name not in output_list:
             result = {
                 "valid": False,
-                "error": [
-                    f"extra function detected: {name} is not in the ground truth"
-                ],
+                "error": [f"extra function detected: {name} is not in the ground truth"],
                 "error_type": "function_mismatch",
             }
             return result
@@ -584,14 +541,9 @@ def normal_checker(
             return result
 
     for i in range(len(possible_answers_list)):
-        func_description = find_description(
-            func_descriptions, func_name_list[i]
-        )
+        func_description = find_description(func_descriptions, func_name_list[i])
         for j in range(len(model_output)):
-            if (
-                list(model_output[j].keys())[0]
-                == list(possible_answers_list[i].keys())[0]
-            ):
+            if list(model_output[j].keys())[0] == list(possible_answers_list[i].keys())[0]:
                 result = simple_function_checker(
                     func_description,
                     model_output[j],

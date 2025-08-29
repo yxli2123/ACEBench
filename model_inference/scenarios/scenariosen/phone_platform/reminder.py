@@ -16,9 +16,7 @@ class ReminderApi(BaseApi):
         Initialize the ReminderAPI with some predefined reminders.
         """
         self.max_capacity = 6
-        self.reminder_list: Dict[
-            int, Dict[str, Union[str, bool, datetime]]
-        ] = {
+        self.reminder_list: Dict[int, Dict[str, Union[str, bool, datetime]]] = {
             1: {
                 "reminder_id": 1001,
                 "title": "Doctor's Appointment",

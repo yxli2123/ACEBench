@@ -1,7 +1,6 @@
 import inspect
 import json
 import logging
-import os
 from copy import deepcopy
 from typing import Any, Dict, Iterator, List, Tuple
 
@@ -41,7 +40,6 @@ CLASS_MAPPING_ZH = {
     "ReminderApi": ReminderApi_Zh,
 }
 _SENTINEL = object()
-DEBUG = os.environ.get("DEBUG", False)
 
 
 def iter_instance_attrs(obj: object) -> Iterator[Tuple[str, Any]]:
@@ -103,9 +101,7 @@ def parse_func_args(func_args: str) -> Dict[str, Any]:
     try:
         arguments_dict = json.loads(func_args)
     except json.JSONDecodeError as e:
-        logging.warning(
-            f"Broken tool_call: invalid JSON {e}\nArgs: \n{func_args}\n"
-        )
+        logging.warning(f"Broken tool_call: invalid JSON {e}\nArgs: \n{func_args}\n")
         arguments_dict = {}
 
     return arguments_dict
@@ -127,18 +123,11 @@ class Executor:
         self.involved_classes = deepcopy(involved_classes)
         self.language = language
 
-        class_mapping = (
-            CLASS_MAPPING_EN.copy()
-            if language == "en"
-            else CLASS_MAPPING_ZH.copy()
-        )
+        class_mapping = CLASS_MAPPING_EN.copy() if language == "en" else CLASS_MAPPING_ZH.copy()
 
         # Instantiate the involved classes.
         # Use a dict to maintain the self.exe_classes, cls_name: cls_instance
-        self.exe_classes = {
-            cls_name: class_mapping[cls_name]()
-            for cls_name in involved_classes
-        }
+        self.exe_classes = {cls_name: class_mapping[cls_name]() for cls_name in involved_classes}
 
         # Initialize the instantiated classes with default BaseApi config first.
         base_api_config = _class_init_config.pop("BaseApi", {})
@@ -155,18 +144,14 @@ class Executor:
         callable_class_names = []
         for cls_name in self.exe_classes.keys():
             cls = (
-                CLASS_MAPPING_EN[cls_name]
-                if self.language == "en"
-                else CLASS_MAPPING_ZH[cls_name]
+                CLASS_MAPPING_EN[cls_name] if self.language == "en" else CLASS_MAPPING_ZH[cls_name]
             )
             if hasattr(cls, func_name):
                 callable_class_names.append(cls_name)
 
         return callable_class_names
 
-    def call_functions(
-        self, functions: List[Dict[str, str | dict]]
-    ) -> List[str]:
+    def call_functions(self, functions: List[Dict[str, str | dict]]) -> List[str]:
         """
         functions: List of functions to call. Each element is a dictionary with "name" and "arguments" keys
         return: List of function outputs in text format.
@@ -187,14 +172,10 @@ class Executor:
                         func_output = cls_method(**func_args)
                     except Exception as e:
                         logging.warning(f"Invalid function call: {e}\n")
-                        func_output = (
-                            f"Function call failed because of exception: {e}"
-                        )
+                        func_output = f"Function call failed because of exception: {e}"
                     func_output = str(func_output)
                 else:
-                    func_output = (
-                        f"Function {func_name} not found in Class {cls_name}."
-                    )
+                    func_output = f"Function {func_name} not found in Class {cls_name}."
 
                 func_output_list.append(func_output)
 

@@ -53,12 +53,8 @@ ACE_DATA_CATEGORY = {
         "agent_multi_step",
         "agent_multi_turn",
     ],
-    "normal_single_turn_single_function": [
-        "normal_single_turn_single_function"
-    ],
-    "normal_single_turn_parallel_function": [
-        "normal_single_turn_parallel_function"
-    ],
+    "normal_single_turn_single_function": ["normal_single_turn_single_function"],
+    "normal_single_turn_parallel_function": ["normal_single_turn_parallel_function"],
     "normal_multi_turn_user_adjust": ["normal_multi_turn_user_adjust"],
     "normal_multi_turn_user_switch": ["normal_multi_turn_user_switch"],
     "normal_similar_api": ["normal_similar_api"],

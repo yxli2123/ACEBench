@@ -16,9 +16,7 @@ class ReminderApi(BaseApi):
         Initialize the ReminderAPI with some predefined reminders.
         """
         self.max_capacity = 6
-        self.reminder_list: Dict[
-            int, Dict[str, Union[str, bool, datetime]]
-        ] = {
+        self.reminder_list: Dict[int, Dict[str, Union[str, bool, datetime]]] = {
             1: {
                 "reminder_id": 1001,
                 "title": "Doctor's Appointment",
@@ -154,9 +152,7 @@ class ReminderApi(BaseApi):
         return {"status": True, "reminders": reminders}
 
     # 4. 标记提醒为已通知
-    def mark_as_notified(
-        self, reminder_id: int
-    ) -> Dict[str, Union[bool, str]]:
+    def mark_as_notified(self, reminder_id: int) -> Dict[str, Union[bool, str]]:
         """
         标记提醒为已通知。
         Args:
@@ -174,9 +170,7 @@ class ReminderApi(BaseApi):
         }
 
     # 6. 搜索提醒
-    def search_reminders(
-        self, keyword: str
-    ) -> Dict[str, Union[bool, List[Dict[str, str]]]]:
+    def search_reminders(self, keyword: str) -> Dict[str, Union[bool, List[Dict[str, str]]]]:
         """
         根据关键词搜索提醒。
         Args:

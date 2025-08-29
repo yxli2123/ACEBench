@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import warnings
 from typing import Any, Dict, List
 
@@ -12,8 +11,6 @@ from .utils import pystr_to_calls, wrap_tool_protocol
 
 logging.basicConfig(level=logging.WARNING)
 
-DEBUG = os.environ.get("DEBUG", False)
-
 
 class BaseAgentInference(BaseModelInference):
     @staticmethod
@@ -24,9 +21,7 @@ class BaseAgentInference(BaseModelInference):
         for i, tool_call in enumerate(tool_calls):
             function = tool_call.function
             arguments = function.arguments
-            call_id = getattr(
-                tool_call, "id", f"{function.name}-{id(arguments)}"
-            )
+            call_id = getattr(tool_call, "id", f"{function.name}-{id(arguments)}")
 
             tool_calls_in_dict.append(
                 {"name": function.name, "arguments": arguments, "id": call_id}
@@ -46,7 +41,7 @@ class BaseAgentInference(BaseModelInference):
         return {"response_content": text}
 
     def has_tool_calls(self, message, parsed_text) -> bool:
-        if message.tool_calls:
+        if getattr(message, "tool_calls", None):
             return True
         else:
             return False
@@ -91,9 +86,7 @@ class BaseAgentInference(BaseModelInference):
             )
         else:
             # If the agent doesn't call any tools, return the dialogue to the user.
-            response_content = parsed_text.get(
-                "response_content", message_text
-            )
+            response_content = parsed_text.get("response_content", message_text)
             dialogue.update(
                 {
                     "recipient": "user",
@@ -113,9 +106,7 @@ class Qwen3AgentInference(BaseAgentInference):
         reasoning_text = ""
         if "</think>" in text:
             parts = text.split("</think>")
-            reasoning_text = (
-                parts[0].rstrip("\n").split("<think>")[-1].lstrip("\n")
-            )
+            reasoning_text = parts[0].rstrip("\n").split("<think>")[-1].lstrip("\n")
             text = parts[-1].lstrip("\n")
 
         return {"reasoning_content": reasoning_text, "response_content": text}
@@ -131,16 +122,13 @@ class Qwen3AgentInference(BaseAgentInference):
 
         for fc_dict in fc_dict_list:
             fc_dict["arguments"] = json.dumps(fc_dict["arguments"])
-            fc_dict.update(
-                {"id": f"{fc_dict['name']}-{id(fc_dict['arguments'])}"}
-            )
+            fc_dict.update({"id": f"{fc_dict['name']}-{id(fc_dict['arguments'])}"})
         tools.extend(fc_dict_list)
         return tools
 
     def post_process(self, text: str, **kwargs) -> Dict[str, Any]:
         # Extract reasoning content if any.
         parsed_response = self._maybe_extract_reasoning_content(text)
-        reasoning_content = parsed_response["reasoning_content"]
         response_content = parsed_response["response_content"]
 
         # Extract tool calls if any.
@@ -166,9 +154,7 @@ class Qwen3AgentInference(BaseAgentInference):
     ) -> List[Dict[str, Any]]:
         msg = messages[0]
         if msg["role"] == "system":
-            msg["content"] = (
-                msg["content"] + f"\nAPI Description:\n{functions}"
-            )
+            msg["content"] = msg["content"] + f"\nAPI Description:\n{functions}"
 
         return messages
 
@@ -206,9 +192,7 @@ class Qwen3AgentFCInference(BaseAgentInference):
         reasoning_text = ""
         if text is not None and "</think>" in text:
             parts = text.split("</think>")
-            reasoning_text = (
-                parts[0].rstrip("\n").split("<think>")[-1].lstrip("\n")
-            )
+            reasoning_text = parts[0].rstrip("\n").split("<think>")[-1].lstrip("\n")
             text = parts[-1].lstrip("\n")
 
         return {"reasoning_content": reasoning_text, "response_content": text}

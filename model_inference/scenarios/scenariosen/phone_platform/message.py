@@ -130,10 +130,7 @@ class MessageApi(BaseApi):
             }
 
         # Verify that the sender and receiver exist
-        if (
-            sender_name not in self.user_list
-            or receiver_name not in self.user_list
-        ):
+        if sender_name not in self.user_list or receiver_name not in self.user_list:
             return {
                 "status": False,
                 "message": "Sender or receiver does not exist",
@@ -208,10 +205,7 @@ class MessageApi(BaseApi):
 
         # Iterate through the inbox to find messages sent from sender_id to receiver_id
         for msg_id, msg_data in self.inbox.items():
-            if (
-                msg_data["sender_id"] == sender_id
-                and msg_data["receiver_id"] == receiver_id
-            ):
+            if msg_data["sender_id"] == sender_id and msg_data["receiver_id"] == receiver_id:
                 messages_between_users.append(
                     {
                         "id": msg_id,
@@ -249,8 +243,7 @@ class MessageApi(BaseApi):
         # Iterate through the inbox to find messages sent or received by the user that contain the keyword
         for msg_id, msg_data in self.inbox.items():
             if (
-                msg_data["sender_id"] == user_id
-                or msg_data["receiver_id"] == user_id
+                msg_data["sender_id"] == user_id or msg_data["receiver_id"] == user_id
             ) and keyword.lower() in msg_data["message"].lower():
                 matched_messages.append(
                     {

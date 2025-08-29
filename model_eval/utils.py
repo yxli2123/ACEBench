@@ -45,15 +45,11 @@ def save_score_as_json(filename, data, subdir=None):
             if isinstance(value, set):
                 print(f"Warning: Found a set in key '{key}', value: {value}")
             elif isinstance(value, dict):
-                _find_and_warn_sets(
-                    value
-                )  # Recursively check nested dictionaries
+                _find_and_warn_sets(value)  # Recursively check nested dictionaries
             elif isinstance(value, list):
                 for item in value:
                     if isinstance(item, dict):
-                        _find_and_warn_sets(
-                            item
-                        )  # Check dictionaries in the list
+                        _find_and_warn_sets(item)  # Check dictionaries in the list
 
     # Write the list of dictionaries to the file
     with open(filename, "w", encoding="utf-8") as file:
@@ -74,10 +70,7 @@ def sum_key_list(data):
 
 
 def flatten_dates(d):
-    return {
-        k: v[0] if isinstance(v, list) and len(v) == 1 else v
-        for k, v in d.items()
-    }
+    return {k: v[0] if isinstance(v, list) and len(v) == 1 else v for k, v in d.items()}
 
 
 def standardize_string(input_string: str):

@@ -123,10 +123,7 @@ class MessageApi(BaseApi):
             }
 
         # 验证发送者和接收者是否存在
-        if (
-            sender_name not in self.user_list
-            or receiver_name not in self.user_list
-        ):
+        if sender_name not in self.user_list or receiver_name not in self.user_list:
             return {"status": False, "message": "发送者或接收者不存在"}
 
         sender_id = self.user_list[sender_name]["user_id"]
@@ -188,10 +185,7 @@ class MessageApi(BaseApi):
 
         # 遍历 inbox，找出 sender_id 发送给 receiver_id 的短信
         for msg_id, msg_data in self.inbox.items():
-            if (
-                msg_data["sender_id"] == sender_id
-                and msg_data["receiver_id"] == receiver_id
-            ):
+            if msg_data["sender_id"] == sender_id and msg_data["receiver_id"] == receiver_id:
                 messages_between_users.append(
                     {
                         "id": msg_id,
@@ -226,8 +220,7 @@ class MessageApi(BaseApi):
         # 遍历 inbox，找到发送或接收中包含关键词的消息
         for msg_id, msg_data in self.inbox.items():
             if (
-                msg_data["sender_id"] == user_id
-                or msg_data["receiver_id"] == user_id
+                msg_data["sender_id"] == user_id or msg_data["receiver_id"] == user_id
             ) and keyword.lower() in msg_data["message"].lower():
                 matched_messages.append(
                     {

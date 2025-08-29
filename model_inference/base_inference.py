@@ -35,9 +35,7 @@ class BaseHandler:
                 test_category = entry["id"].rsplit("_", 1)[0]
             else:
                 test_category = "_".join(entry["id"].split("_")[:-2])
-            file_to_write = (
-                f"{result_path}{model_name}/data_{test_category}_result.json"
-            )
+            file_to_write = f"{result_path}{model_name}/data_{test_category}_result.json"
 
             with open(file_to_write, "a+", encoding="utf-8") as f:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")

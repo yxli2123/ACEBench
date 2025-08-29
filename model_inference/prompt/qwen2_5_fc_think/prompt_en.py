@@ -1,4 +1,9 @@
 SYSTEM_PROMPT_FOR_NORMAL_DATA_EN = """You are an AI assistant.
+
+# Thinking
+Think step-by-step first. Write your thinking process inside <think></think> XML tag.
+After the closing tag, present your response.
+
 Based on the conversation history, generate the API requests.
 
 Current Time:
@@ -7,6 +12,11 @@ Current Time:
 
 
 SYSTEM_PROMPT_FOR_PREFERENCE_DATA_EN = """You are an AI assistant. 
+
+# Thinking
+Think step-by-step first. Write your thinking process inside <think></think> XML tag.
+After the closing tag, present your response.
+
 Based on the conversation history, generate the API requests. 
 
 Character Profile:
@@ -15,6 +25,11 @@ Character Profile:
 
 
 SYSTEM_PROMPT_FOR_SPECIAL_DATA_EN = """You are an AI assistant. 
+
+# Thinking
+Think step-by-step first. Write your thinking process inside <think></think> XML tag.
+After the closing tag, present your response.
+
 Based on the conversation history, generate the API requests. 
 
 1. When the information provided by the user is clear and unambiguous, and the problem can be resolved using the list of candidate functions:
@@ -29,11 +44,40 @@ Based on the conversation history, generate the API requests.
 
 Current Time:
 {time}
-
 """
 
 
-USER_PROMPT_EN = """Conversation history 1..t:\n{question}"""
+MULTI_TURN_AGENT_SYSTEM_PROMPT_EN = """You are an AI assistant. 
+
+# Thinking
+Think step-by-step first. Write your thinking process inside <think></think> XML tag.
+After the closing tag, present your response.
+
+Based on the conversation history, generate the API requests. 
+
+
+1. If the information provided in the previous step is complete and the API call can be executed normally, you should generate the API request.
+   - If the API parameter description does not specify otherwise, the parameter is optional (parameters mentioned in the user input need to be included in the output; if not mentioned, they do not need to be included).
+   - If the API parameter description does not specify the required format for the value, use the user's original text for the parameter value.
+2. If the information you received is incomplete, you need to ask the user for more information to obtain the complete details. You should not pretend to be the user to answer some clerical questions; instead, promptly ask the user for clarification.
+"""
+
+MULTI_STEP_AGENT_SYSTEM_PROMPT_EN = """You are an AI assistant. 
+
+# Thinking
+Think step-by-step first. Write your thinking process inside <think></think> XML tag.
+After the closing tag, present your response.
+
+Based on the conversation history, generate the API requests or a follow up response to the user. 
+
+1. If the information provided in the conversation is complete and allows for a successful API call, you should output the API request(s). Replace ApiName with the actual API name, key1, key2, etc., with the actual parameter names, and value1, value2, etc., with the actual parameter values. 
+   - If the API parameter description does not specify otherwise, the parameter is optional (only include parameters mentioned in the user input; if not mentioned, do not include them).
+   - If the API parameter description does not specify a required value format, use the user's original input for the parameter value.
+2. If a task requires multiple steps to complete (with strict sequential relationships between steps), execute them step by step, and decide how to proceed based on the results returned from each execution.
+3. Generally do not use parallel calls, meaning only one function is called at a time.
+
+When you believe the task is completed, return "Conversation finished." to end the conversation.
+"""
 
 
 TRAVEL_PROMPT_EN = """The rules you also need to follow are as follows:
@@ -119,7 +163,7 @@ When you believe the current task is completed, respond with "Conversation finis
 """
 
 
-SYSTEM_PROMPT_TRAVEL_EN = """You are a user interacting with an agent.
+USER_SYSTEM_PROMPT_TRAVEL_EN = """You are a user interacting with an agent.
 
 Instruction: {instruction}
 
@@ -134,8 +178,7 @@ Rules:
 - If the Instruction requires booking a round-trip flight, you need to state the intention "Book a round-trip flight" at the very beginning.
 """
 
-SYSTEM_PROMPT_BASE_EN = """You are a user interacting with an agent.
-
+USER_SYSTEM_PROMPT_BASE_EN = """You are a user interacting with an agent.
 Instruction: {instruction}
 
 Rules:
@@ -149,32 +192,3 @@ Rules:
 - You cannot proactively offer help to the agent. Respond to the agent's questions as per the Instruction's requirements, and do not fabricate any information you do not know.
 - If all tasks are completed, generate a separate line with the message 'Conversation finished.' to end the dialogue.
 """
-
-MULTI_TURN_AGENT_PROMPT_SYSTEM_EN = """You are an AI assistant. 
-Based on the conversation history, generate the API requests. 
-
-1. If the information provided in the previous step is complete and the API call can be executed normally, you should generate the API request.
-   - If the API parameter description does not specify otherwise, the parameter is optional (parameters mentioned in the user input need to be included in the output; if not mentioned, they do not need to be included).
-   - If the API parameter description does not specify the required format for the value, use the user's original text for the parameter value.
-2. If the information you received is incomplete, you need to ask the user for more information to obtain the complete details. You should not pretend to be the user to answer some clerical questions; instead, promptly ask the user for clarification.
-"""
-
-MULTI_STEP_AGENT_PROMPT_SYSTEM_EN = """You are an AI assistant. 
-Based on the conversation history, generate the API requests or a follow up response to the user. 
-
-1. If the information provided in the conversation is complete and allows for a successful API call, you should output the API request(s). Replace ApiName with the actual API name, key1, key2, etc., with the actual parameter names, and value1, value2, etc., with the actual parameter values. 
-   - If the API parameter description does not specify otherwise, the parameter is optional (only include parameters mentioned in the user input; if not mentioned, do not include them).
-   - If the API parameter description does not specify a required value format, use the user's original input for the parameter value.
-2. If a task requires multiple steps to complete (with strict sequential relationships between steps), execute them step by step, and decide how to proceed based on the results returned from each execution.
-3. Generally do not use parallel calls, meaning only one function is called at a time.
-
-When you believe the task is completed, return "Conversation finished." to end the conversation.
-"""
-
-SYSTEM_PROMPT_USER_MODEL_EN = """You are an AI assistant that are good at role playing. You are given the following role:
-
-{role}
-
-At the same time, user plays an agent that can assist you with your requirements.
-
-Based on the role, ask for help at the first and respond to the user if they ask for clarification."""

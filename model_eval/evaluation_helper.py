@@ -5,13 +5,9 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment
 
 from model_eval.utils import *
-from model_inference.prompt.prompt_en import *
-from model_inference.prompt.prompt_zh import *
 
 REST_API_GROUND_TRUTH_FILE_PATH = "api_status_check_ground_truth_REST.json"
-EXECTUABLE_API_GROUND_TRUTH_FILE_PATH = (
-    "api_status_check_ground_truth_executable.json"
-)
+EXECTUABLE_API_GROUND_TRUTH_FILE_PATH = "api_status_check_ground_truth_executable.json"
 
 COLUMNS = [
     "Model",
@@ -59,9 +55,7 @@ V100_x8_PRICE_PER_HOUR = 22.032
 
 
 def extract_after_test(input_string):
-    parts = (
-        input_string.split("data_")[1].split("_result")[0].split(".json")[0]
-    )
+    parts = input_string.split("data_")[1].split("_result")[0].split(".json")[0]
     return parts
 
 
@@ -107,9 +101,7 @@ def multiplt_turn_accuracy(score_list):
         end_score_list.append(end_score)
         process_score_list.append(process_score)
     end_score_total = round(sum(end_score_list) / len(end_score_list), 3)
-    process_score_total = round(
-        sum(process_score_list) / len(process_score_list), 3
-    )
+    process_score_total = round(sum(process_score_list) / len(process_score_list), 3)
     return end_score_total, process_score_total
 
 
@@ -118,9 +110,7 @@ def calculate_weighted_accuracy(accuracy_dict_list):
     total_accuracy = 0
     for accuracy_dict in accuracy_dict_list:
         total_count += accuracy_dict["total_count"]
-        total_accuracy += (
-            accuracy_dict["accuracy"] * accuracy_dict["total_count"]
-        )
+        total_accuracy += accuracy_dict["accuracy"] * accuracy_dict["total_count"]
 
     if total_count == 0:
         return {"accuracy": 0, "total_count": 0}
@@ -165,9 +155,7 @@ def update_result_table_with_score_file(leaderboard_table, score_path):
                         metadata["accuracy"],
                         metadata["total_count"],
                     )
-                    test_category = model_score_json.split("_score.json")[
-                        0
-                    ].split("/")[-1]
+                    test_category = model_score_json.split("_score.json")[0].split("/")[-1]
                     test_category = test_category.split("\\")[-1]
                     if model_name not in leaderboard_table:
                         leaderboard_table[model_name] = {}
@@ -183,9 +171,7 @@ def update_result_table_with_score_file(leaderboard_table, score_path):
                         metadata["process_accuracy"],
                         metadata["total_count"],
                     )
-                    test_category = model_score_json.split("_score.json")[
-                        0
-                    ].split("/")[-1]
+                    test_category = model_score_json.split("_score.json")[0].split("/")[-1]
                     test_category = test_category.split("\\")[-1]
                     if model_name not in leaderboard_table:
                         leaderboard_table[model_name] = {}
@@ -202,28 +188,16 @@ def generate_result_csv(leaderboard_table, output_path):
     data_close = []
     data_open = []
     for model_name, value in leaderboard_table.items():
-        unusal_lose = value.get(
-            "data_special_incomplete", {"accuracy": 0, "total_count": 0}
-        )
-        unusal_error = value.get(
-            "data_special_error_param", {"accuracy": 0, "total_count": 0}
-        )
-        unusal_exceeding = value.get(
-            "data_special_irrelevant", {"accuracy": 0, "total_count": 0}
-        )
+        unusal_lose = value.get("data_special_incomplete", {"accuracy": 0, "total_count": 0})
+        unusal_error = value.get("data_special_error_param", {"accuracy": 0, "total_count": 0})
+        unusal_exceeding = value.get("data_special_irrelevant", {"accuracy": 0, "total_count": 0})
 
-        atom_bool = value.get(
-            "data_normal_atom_bool", {"accuracy": 0, "total_count": 0}
-        )
-        atom_enum = value.get(
-            "data_normal_atom_enum", {"accuracy": 0, "total_count": 0}
-        )
+        atom_bool = value.get("data_normal_atom_bool", {"accuracy": 0, "total_count": 0})
+        atom_enum = value.get("data_normal_atom_enum", {"accuracy": 0, "total_count": 0})
         atom_number = value.get(
             "data_normal_atom_number", {"accuracy": 0, "total_count": 0}
         )  # updated
-        atom_list = value.get(
-            "data_normal_atom_list", {"accuracy": 0, "total_count": 0}
-        )  # updated
+        atom_list = value.get("data_normal_atom_list", {"accuracy": 0, "total_count": 0})  # updated
         atom_object_deep = value.get(
             "data_normal_atom_object_deep", {"accuracy": 0, "total_count": 0}
         )  # updated
@@ -263,9 +237,7 @@ def generate_result_csv(leaderboard_table, output_path):
             {"accuracy": 0, "process_accuracy": 0, "total_count": 0},
         )
 
-        special_total = calculate_unweighted_accuracy(
-            [unusal_lose, unusal_error, unusal_exceeding]
-        )
+        special_total = calculate_unweighted_accuracy([unusal_lose, unusal_error, unusal_exceeding])
 
         normal_total = calculate_unweighted_accuracy(
             [
@@ -297,13 +269,9 @@ def generate_result_csv(leaderboard_table, output_path):
             ]
         )
 
-        singal_turn_total = calculate_unweighted_accuracy(
-            [normal_ss, normal_sp]
-        )
+        singal_turn_total = calculate_unweighted_accuracy([normal_ss, normal_sp])
 
-        multi_turn_total = calculate_unweighted_accuracy(
-            [normal_ms, normal_ma]
-        )
+        multi_turn_total = calculate_unweighted_accuracy([normal_ms, normal_ma])
 
         summary = (
             special_total["accuracy"] * 0.2676
@@ -447,12 +415,8 @@ def convert_result_to_excel(model_name, category, paths):
 
     prompt_file = build_data_path(PROMPT_PATH, category)
     answer_file = build_data_path(POSSIBLE_ANSWER_PATH, category)
-    result_file = build_result_path(
-        INPUT_PATH, model_name, category, "_result.json"
-    )
-    score_file = build_result_path(
-        SCORE_PATH, model_name, category, "_score.json"
-    )
+    result_file = build_result_path(INPUT_PATH, model_name, category, "_result.json")
+    score_file = build_result_path(SCORE_PATH, model_name, category, "_score.json")
 
     prompt_list = []
     with open(prompt_file, "r", encoding="utf-8") as f:
@@ -478,10 +442,8 @@ def convert_result_to_excel(model_name, category, paths):
                         time=time, function=functions
                     )
                 elif "preference" in category:
-                    system_prompt = (
-                        SYSTEM_PROMPT_FOR_PREFERENCE_DATA_ZH.format(
-                            profile=profile, function=functions
-                        )
+                    system_prompt = SYSTEM_PROMPT_FOR_PREFERENCE_DATA_ZH.format(
+                        profile=profile, function=functions
                     )
                 else:
                     system_prompt = SYSTEM_PROMPT_FOR_NORMAL_DATA_ZH.format(
@@ -494,10 +456,8 @@ def convert_result_to_excel(model_name, category, paths):
                         time=time, function=functions
                     )
                 elif "preference" in category:
-                    system_prompt = (
-                        SYSTEM_PROMPT_FOR_PREFERENCE_DATA_EN.format(
-                            profile=profile, function=functions
-                        )
+                    system_prompt = SYSTEM_PROMPT_FOR_PREFERENCE_DATA_EN.format(
+                        profile=profile, function=functions
                     )
                 else:
                     system_prompt = SYSTEM_PROMPT_FOR_NORMAL_DATA_EN.format(
@@ -506,9 +466,7 @@ def convert_result_to_excel(model_name, category, paths):
                 user_prompt = USER_PROMPT_EN.format(question=question)
 
             prompt = system_prompt + "\n" + user_prompt
-            prompt_list.append(
-                {"id": id, "prompt": prompt, "question": question}
-            )
+            prompt_list.append({"id": id, "prompt": prompt, "question": question})
 
     with open(answer_file, "r", encoding="utf-8") as f:
         for index, line in enumerate(f):

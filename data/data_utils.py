@@ -1,19 +1,14 @@
 import json
-import os
 import re
 import warnings
 from typing import Dict, List
 
 from model_inference.utils import pystr_to_calls, wrap_tool_protocol
 
-DEBUG = os.environ.get("DEBUG", False)
-
 
 def convert_text_to_messages(text: str) -> List[Dict[str, str]]:
     # Regex: match 'user:' or 'system:' and capture their role + content
-    pattern = re.compile(
-        r"(user|system):\s*(.*?)(?=(?:\n(?:user|system):)|$)", re.DOTALL
-    )
+    pattern = re.compile(r"(user|system):\s*(.*?)(?=(?:\n(?:user|system):)|$)", re.DOTALL)
 
     messages = []
     for _role, _content in pattern.findall(text):
@@ -29,9 +24,7 @@ def convert_text_to_messages(text: str) -> List[Dict[str, str]]:
                 content = wrap_tool_protocol(content)
                 for c in content:
                     c.update({"id": str(id(c))})
-                    c["function"]["arguments"] = json.dumps(
-                        c["function"]["arguments"]
-                    )
+                    c["function"]["arguments"] = json.dumps(c["function"]["arguments"])
             except Exception:
                 cont_key = "content"
                 warnings.warn(f"Could not convert to dict.\n{content}")

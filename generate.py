@@ -20,16 +20,7 @@ from model_inference.prompt.prompt_utils import (
     compose_special_system_prompt,
     compose_user_system_message,
 )
-from model_inference.prompt_fc.prompt_utils import (
-    compose_agent_system_prompt_fc,
-    compose_normal_system_prompt_fc,
-    compose_preference_system_prompt_fc,
-    compose_special_system_prompt_fc,
-    compose_user_system_message_fc,
-)
 from model_inference.utils import calls_to_pystr
-
-DEBUG = os.environ.get("DEBUG", False)
 
 
 def parser():
@@ -161,20 +152,6 @@ def generate_single_case(
 
     test_id = test_case["id"]
 
-    # Map prompt for FC mode and prompt mode.
-    if "fc" in args.model_name.lower():
-        _compose_agent_system_prompt = compose_agent_system_prompt_fc
-        _compose_user_system_message = compose_user_system_message_fc
-        _compose_special_system_prompt = compose_special_system_prompt_fc
-        _compose_preference_system_prompt = compose_preference_system_prompt_fc
-        _compose_normal_system_prompt = compose_normal_system_prompt_fc
-    else:
-        _compose_agent_system_prompt = compose_agent_system_prompt
-        _compose_user_system_message = compose_user_system_message
-        _compose_special_system_prompt = compose_special_system_prompt
-        _compose_preference_system_prompt = compose_preference_system_prompt
-        _compose_normal_system_prompt = compose_normal_system_prompt
-
     # Multi-turn and multi-step mode.
     if "agent" in test_id:
         initial_config = test_case["initial_config"]
@@ -182,15 +159,20 @@ def generate_single_case(
         category = "multi_turn" if "multi_turn" in test_id else "multi_step"
 
         # Initialize agent model by injecting the system prompt.
-        agent_system_prompt = _compose_agent_system_prompt(
-            category, involved_classes, args.language
+        agent_system_prompt = compose_agent_system_prompt(
+            category=category,
+            involved_classes=involved_classes,
+            language=args.language,
+            model_name=args.model_name,
         )
 
         # Initialize user model by injecting the system prompt.
         if category == "multi_turn":
-            user_message_history = _compose_user_system_message(
-                role=test_case["question"],
+            user_message_history = compose_user_system_message(
+                instruction=test_case["question"],
+                involved_classes=involved_classes,
                 language=args.language,
+                model_name=args.user_model_name,
             )
         else:
             user_model = None
@@ -235,19 +217,22 @@ def generate_single_case(
     else:
         # Initialize agent model by injecting the system prompt.
         if "special" in test_id:
-            agent_system_prompt = _compose_special_system_prompt(
+            agent_system_prompt = compose_special_system_prompt(
                 time=test_case.get("time", ""),
                 language=args.language,
+                model_name=args.model_name,
             )
         elif "preferences" in test_id:
-            agent_system_prompt = _compose_preference_system_prompt(
+            agent_system_prompt = compose_preference_system_prompt(
                 profile=test_case.get("profile", ""),
                 language=args.language,
+                model_name=args.model_name,
             )
         else:
-            agent_system_prompt = _compose_normal_system_prompt(
+            agent_system_prompt = compose_normal_system_prompt(
                 time=test_case.get("time", ""),
                 language=args.language,
+                model_name=args.model_name,
             )
 
         # TODO: This is a Patch: convert the offline multi turn text into chat message format.
@@ -258,9 +243,7 @@ def generate_single_case(
         #   {"role": "user", "content": "in Paris."},
         # ]
         if "multi_turn" in test_id:
-            agent_message_history = convert_text_to_messages(
-                test_case["question"]
-            )
+            agent_message_history = convert_text_to_messages(test_case["question"])
             # The last one is always the user's query.
             question = agent_message_history.pop(-1)["content"]
         else:
@@ -283,15 +266,10 @@ def generate_single_case(
             # Evaluation only allows a string like `[func1(arg1=val1),func2(arg2=val2)]`
             agent_fc_str = calls_to_pystr(agent_fc)
         else:
-            warnings.warn(
-                f"Last recipient is NOT executor, get {dialogue[-1]['recipient']}"
-            )
+            warnings.warn(f"Last recipient is NOT executor, get {dialogue[-1]['recipient']}")
             agent_fc_str = dialogue[-1]["message"]["content"]
 
-        result = {
-            "id": test_id,
-            "result": agent_fc_str,
-        }
+        result = {"id": test_id, "result": agent_fc_str}
 
     return result, dialogue
 
@@ -365,7 +343,7 @@ def generate_single_category(
     #     logs.append(log)
 
     # Write the results and logs.
-    print("===> Writing results and logs ...\n")
+    print(f"===> Writing results to {result_path} ...\n")
     with open(result_path, "a", encoding="utf-8") as fp_result:
         with open(log_path, "a", encoding="utf-8") as fp_log:
             for result, log in zip(results, logs):
@@ -377,23 +355,13 @@ def main():
     args = parser()
     project_root = os.getenv("PROJECT_ROOT", "./")
 
-    data_dir = (
-        Path(args.data_dir) if args.data_dir else Path(project_root) / "data"
-    )
-    result_root_dir = (
-        Path(args.result_dir)
-        if args.result_dir
-        else Path(project_root) / "results"
-    )
-    log_root_dir = (
-        Path(args.log_dir) if args.log_dir else Path(project_root) / "logs"
-    )
+    data_dir = Path(args.data_dir) if args.data_dir else Path(project_root) / "data"
+    result_root_dir = Path(args.result_dir) if args.result_dir else Path(project_root) / "results"
+    log_root_dir = Path(args.log_dir) if args.log_dir else Path(project_root) / "logs"
 
     # Get the filenames of the test cases
     test_names = {
-        test_name
-        for category in args.category
-        for test_name in ACE_DATA_CATEGORY[category]
+        test_name for category in args.category for test_name in ACE_DATA_CATEGORY[category]
     }
 
     agent_inference = AGENT_NAME_MAP[args.model_name]
@@ -412,17 +380,9 @@ def main():
     for test_category in test_names:
         data_path = data_dir / args.language / f"data_{test_category}.json"
         result_path = (
-            result_root_dir
-            / args.model_name
-            / args.language
-            / f"result_{test_category}.json"
+            result_root_dir / args.model_name / args.language / f"result_{test_category}.json"
         )
-        log_path = (
-            log_root_dir
-            / args.model_name
-            / args.language
-            / f"log_{test_category}.json"
-        )
+        log_path = log_root_dir / args.model_name / args.language / f"log_{test_category}.json"
 
         # Count the cases that have already been generated to avoid duplication
         completed_id_set = set()
