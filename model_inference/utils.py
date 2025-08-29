@@ -6,15 +6,7 @@ import warnings
 DEBUG = os.environ.get("DEBUG", False)
 
 
-def decode_ast(model_name, result, language="Python"):
-    # if "FC" not in model_name:
-    #     decoded_output = ast_parse(result, language)
-    # else:
-    #     decoded_output = []
-    #     for invoked_function in result:
-    #         name = list(invoked_function.keys())[0]
-    #         params = json.loads(invoked_function[name])
-    #         decoded_output.append({name: params})
+def decode_ast(result, language="Python"):
     decoded_output = ast_parse(result, language)
     return decoded_output
 

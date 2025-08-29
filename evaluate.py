@@ -1,4 +1,6 @@
 import sys
+from os import PathLike
+from typing import List
 
 sys.path.append("../")
 
@@ -14,7 +16,7 @@ RESULT_TABLE = {}
 
 
 def normal_single_turn_eval(
-    model_result, prompt, possible_answer, test_category, model_name, paths
+    model_result, prompt, possible_answer, test_category, score_path
 ):
     if not all(len(x) == len(model_result) for x in [prompt, possible_answer]):
         raise ValueError(
@@ -35,7 +37,7 @@ def normal_single_turn_eval(
         try:
             model_result_item_raw = model_result_item
             model_result_item_raw = "".join(model_result_item_raw.split())
-            model_result_item = decode_ast(model_name, model_result_item_raw)
+            model_result_item = decode_ast(model_result_item_raw)
         except Exception as e:
             result.append(
                 {
@@ -115,16 +117,18 @@ def normal_single_turn_eval(
         },
     )
 
-    output_file_name = "data_" + test_category + "_score.json"
-    output_file_dir = os.path.join(OUTPUT_PATH, model_name)
-    save_score_as_json(output_file_name, result, output_file_dir)
+    save_score_as_json(score_path, result)
 
     # convert_result_to_excel(model_name, test_category, paths)
     return accuracy
 
 
 def normal_multi_turn_eval(
-    model_result, prompt, possible_answer, test_category, model_name, paths
+    model_result,
+    prompt,
+    possible_answer,
+    test_category,
+    score_path,
 ):
     if not all(len(x) == len(model_result) for x in [prompt, possible_answer]):
         raise ValueError(
@@ -151,7 +155,7 @@ def normal_multi_turn_eval(
         try:
             model_result_item_raw = model_result_item
             model_result_item_raw = "".join(model_result_item_raw.split())
-            model_result_item = decode_ast(model_name, model_result_item_raw)
+            model_result_item = decode_ast(model_result_item_raw)
         except Exception as e:
             result.append(
                 {
@@ -276,9 +280,7 @@ def normal_multi_turn_eval(
         },
     )
 
-    output_file_name = "data_" + test_category + "_score.json"
-    output_file_dir = os.path.join(OUTPUT_PATH, model_name)
-    save_score_as_json(output_file_name, result, output_file_dir)
+    save_score_as_json(score_path, result)
 
     # convert_result_to_excel(model_name, test_category, paths)
 
@@ -286,7 +288,11 @@ def normal_multi_turn_eval(
 
 
 def special_eval(
-    model_result, prompt, possible_answer, category, model_name, paths
+    model_result,
+    prompt,
+    possible_answer,
+    category,
+    score_path,
 ):
     if not all(len(x) == len(model_result) for x in [prompt, possible_answer]):
         raise ValueError(
@@ -375,15 +381,18 @@ def special_eval(
             "total_count": len(model_result),
         },
     )
-    output_file_name = "data_" + category + "_score.json"
-    output_file_dir = os.path.join(OUTPUT_PATH, model_name)
-    save_score_as_json(output_file_name, wrong_list, output_file_dir)
+
+    save_score_as_json(score_path, wrong_list)
     # convert_result_to_excel(model_name, category, paths)
     return accuracy
 
 
 def agent_eval(
-    model_result, prompt, possible_answer, test_category, model_name
+    model_result,
+    prompt,
+    possible_answer,
+    test_category,
+    score_path,
 ):
     if not all(len(x) == len(model_result) for x in [prompt, possible_answer]):
         raise ValueError(
@@ -448,13 +457,11 @@ def agent_eval(
             correct_index.append(i)
 
     accuracy = round(correct_count / len(model_result), 3)
-    process_accuracy = agent_eval_process(
-        model_name,
+    process_accuracy, individual_accuracies = agent_eval_process(
         model_result,
         possible_answer,
         test_category,
         correct_index,
-        language,
     )
     result.insert(
         0,
@@ -465,19 +472,24 @@ def agent_eval(
             "total_count": len(model_result),
         },
     )
-    output_file_name = "data_" + test_category + "_score.json"
-    output_file_dir = os.path.join(OUTPUT_PATH, model_name)
-    save_score_as_json(output_file_name, result, output_file_dir)
+
+    # Write individual_accuracies to JSON file line by line
+    process_path = score_path.replace(".json", "_process.json")
+    with open(process_path, "w", encoding="utf-8") as f:
+        for entry in individual_accuracies:
+            json.dump(entry, f, ensure_ascii=False)
+            f.write(
+                "\n"
+            )  # Write a newline character to make each JSON object occupy a separate line
+    save_score_as_json(score_path, result)
     return accuracy, process_accuracy
 
 
 def agent_eval_process(
-    model_name,
     model_results,
     possible_answers,
     test_category,
     correct_list,
-    language,
 ):
     individual_accuracies = []  # Used to store the accuracy of each data point
     total_accuracy = 0  # Store the total accuracy of all data
@@ -578,38 +590,38 @@ def agent_eval_process(
     # Calculate the overall accuracy of all entries
     overall_accuracy = total_accuracy / len(model_results)
     overall_accuracy = round(overall_accuracy, 3)  # Keep two decimal places
-    if language == "zh":
-        file_name = (
-            "./score_all/score_zh/"
-            + model_name
-            + "/data_"
-            + test_category
-            + "_process.json"
-        )
-    elif language == "en":
-        file_name = (
-            "./score_all/score_en/"
-            + model_name
-            + "/data_"
-            + test_category
-            + "_process.json"
-        )
-    # Write individual_accuracies to JSON file line by line
-    with open(file_name, "w", encoding="utf-8") as f:
-        for entry in individual_accuracies:
-            json.dump(entry, f, ensure_ascii=False)
-            f.write(
-                "\n"
-            )  # Write a newline character to make each JSON object occupy a separate line
+    # if language == "zh":
+    #     file_name = (
+    #         "./score_all/score_zh/"
+    #         + model_name
+    #         + "/data_"
+    #         + test_category
+    #         + "_process.json"
+    #     )
+    # elif language == "en":
+    #     file_name = (
+    #         "./score_all/score_en/"
+    #         + model_name
+    #         + "/data_"
+    #         + test_category
+    #         + "_process.json"
+    #     )
 
     # Return the accuracy of each data point and the overall accuracy
-    return overall_accuracy
+    return overall_accuracy, individual_accuracies
 
 
-#### Main runner function ####
-def runner(data_dir, result_dir, categories, paths, model_name):
+#### Main evaluate function ####
+def evaluate(
+    data_dir: PathLike,
+    result_dir: PathLike,
+    categories: List[str],
+    score_dir: PathLike,
+):
     for category in categories:
         print(f"🔍 Running test: {category}")
+
+        score_path = os.path.join(score_dir, f"score_{category}.json")
 
         model_result_path = os.path.join(result_dir, f"result_{category}.json")
         model_result = load_file(model_result_path)
@@ -628,12 +640,9 @@ def runner(data_dir, result_dir, categories, paths, model_name):
                 prompt,
                 possible_answer,
                 category,
-                model_name,
-                paths,
+                score_path,
             )
-            print(
-                f"Model: {model_name} | ✔️ Test '{category}' is done! 🚀 Accuracy: {accuracy}."
-            )
+            print(f"✔️ Test '{category}' is done! 🚀 Accuracy: {accuracy}.")
 
         elif "agent" in category:
             end_accuracy, process_accuracy = agent_eval(
@@ -641,10 +650,10 @@ def runner(data_dir, result_dir, categories, paths, model_name):
                 prompt,
                 possible_answer,
                 category,
-                model_name,
+                score_path,
             )
             print(
-                f"Model: {model_name} | ✔️ Test '{category}' is done! | End_to_End Accuracy: {end_accuracy} | Process Accuracy: {process_accuracy}"
+                f"✔️ Test '{category}' is done! | End_to_End Accuracy: {end_accuracy} | Process Accuracy: {process_accuracy}"
             )
 
         elif "normal_multi_turn" in category:
@@ -653,12 +662,9 @@ def runner(data_dir, result_dir, categories, paths, model_name):
                 prompt,
                 possible_answer,
                 category,
-                model_name,
-                paths,
+                score_path,
             )
-            print(
-                f"Model: {model_name} | ✔️ Test '{category}' is done! | Accuracy: {end_accuracy}"
-            )
+            print(f"✔️ Test '{category}' is done! | Accuracy: {end_accuracy}")
 
         else:
             accuracy = normal_single_turn_eval(
@@ -666,12 +672,9 @@ def runner(data_dir, result_dir, categories, paths, model_name):
                 prompt,
                 possible_answer,
                 category,
-                model_name,
-                paths,
+                score_path,
             )
-            print(
-                f"Model: {model_name} | ✔️ Test '{category}' is done! | Accuracy: {accuracy}"
-            )
+            print(f"✔️ Test '{category}' is done! | Accuracy: {accuracy}")
 
     update_result_table_with_score_file(RESULT_TABLE, OUTPUT_PATH)
     generate_result_csv(RESULT_TABLE, OUTPUT_PATH)
@@ -689,7 +692,7 @@ def get_paths(language):
     return base_paths.get(language)
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(
         description="Process two lists of strings."
     )
@@ -739,15 +742,21 @@ if __name__ == "__main__":
         args.result_root_dir, args.model_name, args.language
     )
     data_dir = os.path.join(args.data_dir, args.language)
+    score_dir = os.path.join(
+        args.score_root_dir, args.model_name, args.language
+    )
 
     # Call the main function
-    runner(
+    evaluate(
         data_dir=data_dir,
         result_dir=result_dir,
         categories=test_categories,
-        paths=paths,
-        model_name=args.model_name,
+        score_dir=score_dir,
     )
 
     print(f"Models being evaluated: {args.model_name}")
     print(f"Test categories being used: {test_categories}")
+
+
+if __name__ == "__main__":
+    main()
