@@ -1,24 +1,29 @@
 import inspect
+import json
+import logging
+import os
 from copy import deepcopy
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterator, List, Tuple
 
-from scenarios.scenariosen.phone_platform.base_api import BaseApi
-from scenarios.scenariosen.phone_platform.food_services import FoodPlatform
-from scenarios.scenariosen.phone_platform.message import MessageApi
-from scenarios.scenariosen.phone_platform.reminder import ReminderApi
-from scenarios.scenariosen.travel import Travel
-from scenarios.scenarioszh.phone_platform.base_api import BaseApi as BaseApi_Zh
-from scenarios.scenarioszh.phone_platform.food_services import (
+from .scenarios.scenariosen.phone_platform.base_api import BaseApi
+from .scenarios.scenariosen.phone_platform.food_services import FoodPlatform
+from .scenarios.scenariosen.phone_platform.message import MessageApi
+from .scenarios.scenariosen.phone_platform.reminder import ReminderApi
+from .scenarios.scenariosen.travel import Travel
+from .scenarios.scenarioszh.phone_platform.base_api import (
+    BaseApi as BaseApi_Zh,
+)
+from .scenarios.scenarioszh.phone_platform.food_services import (
     FoodPlatform as FoodPlatform_Zh,
 )
-from scenarios.scenarioszh.phone_platform.message import (
+from .scenarios.scenarioszh.phone_platform.message import (
     MessageApi as MessageApi_Zh,
 )
-from scenarios.scenarioszh.phone_platform.reminder import (
+from .scenarios.scenarioszh.phone_platform.reminder import (
     ReminderApi as ReminderApi_Zh,
 )
-from scenarios.scenarioszh.travel import Travel as Travel_Zh
-from scenarios.utils import SAVED_CLASS
+from .scenarios.scenarioszh.travel import Travel as Travel_Zh
+from .scenarios.utils import SAVED_CLASS
 
 CLASS_MAPPING_EN = {
     "Travel": Travel,
@@ -35,6 +40,43 @@ CLASS_MAPPING_ZH = {
     "MessageApi": MessageApi_Zh,
     "ReminderApi": ReminderApi_Zh,
 }
+_SENTINEL = object()
+DEBUG = os.environ.get("DEBUG", False)
+
+
+def iter_instance_attrs(obj: object) -> Iterator[Tuple[str, Any]]:
+    """
+    Yield (name, value) for all per-instance attributes (i.e., set on self),
+    supporting both __dict__ and __slots__. Skips callables and private names.
+    """
+    names = set()
+
+    # Attributes stored in __dict__
+    if hasattr(obj, "__dict__"):
+        names.update(obj.__dict__.keys())
+
+    # Attributes stored in __slots__ (walk the MRO to include bases)
+    for cls in obj.__class__.mro():
+        slots = cls.__dict__.get("__slots__", ())
+        if isinstance(slots, str):
+            slots = (slots,)
+        names.update(slots or ())
+
+    for name in sorted(n for n in names if n and not n.startswith("_")):
+        # Prefer __dict__ value when available (avoids triggering properties)
+        val = _SENTINEL
+        if hasattr(obj, "__dict__"):
+            val = obj.__dict__.get(name, _SENTINEL)
+        if val is _SENTINEL:
+            # Might be a slot; grab it (and ignore missing/descriptor errors)
+            try:
+                val = getattr(obj, name)
+            except Exception:
+                continue
+
+        if callable(val):
+            continue
+        yield name, val
 
 
 def create_map_function_to_class(cls) -> Dict[str, str]:
@@ -57,6 +99,18 @@ def create_map_function_to_class(cls) -> Dict[str, str]:
     return {k: cls.__name__ for k in fun_names}
 
 
+def parse_func_args(func_args: str) -> Dict[str, Any]:
+    try:
+        arguments_dict = json.loads(func_args)
+    except json.JSONDecodeError as e:
+        logging.warning(
+            f"Broken tool_call: invalid JSON {e}\nArgs: \n{func_args}\n"
+        )
+        arguments_dict = {}
+
+    return arguments_dict
+
+
 class Executor:
     """This class execute the function calls from the agent and return the function output back to the agent."""
 
@@ -74,7 +128,9 @@ class Executor:
         self.language = language
 
         class_mapping = (
-            CLASS_MAPPING_EN if language == "en" else CLASS_MAPPING_EN.copy()
+            CLASS_MAPPING_EN.copy()
+            if language == "en"
+            else CLASS_MAPPING_ZH.copy()
         )
 
         # Instantiate the involved classes.
@@ -93,14 +149,20 @@ class Executor:
         for cls_name, cls_config in _class_init_config.items():
             self.exe_classes[cls_name]._load_scenario(cls_config)
 
+    def func_to_callable_classes(self, func_name):
         # Create a function names to class name map.
         # This is because the function descriptions don't have their class, only method (function) names
-        self.func_to_class = {}
+        callable_class_names = []
         for cls_name in self.exe_classes.keys():
-            func_to_class = create_map_function_to_class(
-                class_mapping[cls_name]
+            cls = (
+                CLASS_MAPPING_EN[cls_name]
+                if self.language == "en"
+                else CLASS_MAPPING_ZH[cls_name]
             )
-            self.func_to_class.update(func_to_class)
+            if hasattr(cls, func_name):
+                callable_class_names.append(cls_name)
+
+        return callable_class_names
 
     def call_functions(
         self, functions: List[Dict[str, str | dict]]
@@ -111,28 +173,37 @@ class Executor:
         """
         func_output_list = []
         for function in functions:
-            func_name = function["name"]
-            func_args = function["arguments"]
+            func_name: str = function["name"]
+            func_args: dict = parse_func_args(function["arguments"])
 
-            cls_name = self.func_to_class[func_name]
-            cls_instance = self.exe_classes[cls_name]
-            cls_method = getattr(cls_instance, func_name, None)
-            if cls_method is not None:
-                func_output = getattr(cls_instance, func_name)(*func_args)
-                func_output = str(func_output)
-            else:
-                func_output = (
-                    f"Function {func_name} not found in Class {cls_name}."
-                )
+            # One function may be shared across different classes.
+            # Call all the class methods, if the name matches.
+            callable_cls_names = self.func_to_callable_classes(func_name)
+            for cls_name in callable_cls_names:
+                cls_instance = self.exe_classes[cls_name]
+                cls_method = getattr(cls_instance, func_name, None)
+                if cls_method is not None:
+                    try:
+                        func_output = cls_method(**func_args)
+                    except Exception as e:
+                        logging.warning(f"Invalid function call: {e}\n")
+                        func_output = (
+                            f"Function call failed because of exception: {e}"
+                        )
+                    func_output = str(func_output)
+                else:
+                    func_output = (
+                        f"Function {func_name} not found in Class {cls_name}."
+                    )
 
-            func_output_list.append(func_output)
+                func_output_list.append(func_output)
 
         return func_output_list
 
     def get_exe_class(self, involved_class: str):
         return self.exe_classes[involved_class]
 
-    def return_exe_class_status(self) -> List[Dict[Dict[str, Any]]]:
+    def return_exe_class_status(self) -> List[Dict[str, Dict[str, Any]]]:
         status_list = []
         for involved_class in self.involved_classes:
             exe_class = self.get_exe_class(involved_class)
@@ -144,3 +215,9 @@ class Executor:
             status_list.append({involved_class: status_dict})
 
         return status_list
+
+    def check_classes(self):
+        for idx, obj in enumerate(self.exe_classes.values(), 1):
+            print(f"Instance {idx} ({obj.__class__.__name__}):")
+            for k, v in iter_instance_attrs(obj):
+                print(f"  {k} = {v!r}")

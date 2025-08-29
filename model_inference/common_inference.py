@@ -1,8 +1,11 @@
+import os
 from typing import Any, Dict, List
 
-from model_inference.executor import Executor
-from model_inference.model_agent import tool_output_to_message
-from model_inference.model_base import BaseModelInference
+from .executor import Executor
+from .model_base import BaseModelInference
+from .utils import tool_output_to_message
+
+DEBUG = os.environ.get("DEBUG", False)
 
 
 def convert_messages_to_dialogue(
@@ -15,17 +18,35 @@ def convert_messages_to_dialogue(
                 {
                     "sender": "user",
                     "recipient": "agent",
-                    "message": msg["content"],
+                    "message": {
+                        "role": "user",
+                        "content": msg["content"],
+                    },
                 }
             )
         elif msg["role"] == "assistant":
-            dialogue.append(
-                {
-                    "sender": "agent",
-                    "recipient": "user",
-                    "message": msg["content"],
-                }
-            )
+            if "tool_calls" in msg:
+                dialogue.append(
+                    {
+                        "sender": "agent",
+                        "recipient": "executor",
+                        "message": {
+                            "role": "assistant",
+                            "tool_calls": msg["tool_calls"],
+                        },
+                    }
+                )
+            else:
+                dialogue.append(
+                    {
+                        "sender": "agent",
+                        "recipient": "user",
+                        "message": {
+                            "role": "assistant",
+                            "content": msg["content"],
+                        },
+                    }
+                )
 
     return dialogue
 
@@ -40,7 +61,7 @@ def inference(
     user_model_generation_kwargs: Dict[str, Any] | None = None,
     executor: Executor | None = None,
     user_model: BaseModelInference | None = None,
-    user_system_prompt: str | None = None,
+    user_message_history: List[Dict[str, Any]] | None = None,
     agent_message_history: List[Dict[str, Any]] | None = None,
 ) -> List[Dict[str, Any]]:
     """This is a general inference for agent. It is designed as agent centralized.
@@ -54,7 +75,7 @@ def inference(
     #   N   |    agent         -->  user          |
 
     Args:
-        agent_model: the agent model with system prompt injected.
+        agent_model: the agent model.
         agent_system_prompt: the system prompt injected for the agent model.
         question: the question for the agent model if no user_model is provided,
             otherwise the init query for the user model.
@@ -65,7 +86,7 @@ def inference(
         user_model_generation_kwargs: the user model generation kwargs.
         executor: Optional if in multi-turn or multi-step evaluation.
         user_model: Optional if in multi-turn evaluation.
-        user_system_prompt: system prompt for the user model.,
+        user_message_history: system prompt and fist query for the user model.,
         agent_message_history: For data_normal_multi_turn_user_adjust.json,
             where we know the historical multi-turn conversations.
 
@@ -81,7 +102,8 @@ def inference(
         else convert_messages_to_dialogue(agent_message_history)
     )
 
-    if agent_message_history is None:
+    # Handle agent_message_history is None or agent_message_history = []
+    if not agent_message_history:
         agent_message_history = [
             {"role": "system", "content": agent_system_prompt}
         ]
@@ -90,18 +112,15 @@ def inference(
             0, {"role": "system", "content": agent_system_prompt}
         )
 
-    user_message_history = (
-        [{"role": "system", "content": user_system_prompt}]
-        if user_system_prompt
-        else []
-    )
-
     # Initial turn.
     # Single turn or multi step modes.
     if user_model is None:
         user_init_query = question
     # Multi-turn mode.
     else:
+        assert user_message_history is not None, (
+            "In Multi-turn mode, user message history MUST not be None."
+        )
         user_model_generation_kwargs = (
             generation_kwargs
             if user_model_generation_kwargs is None
@@ -151,17 +170,17 @@ def inference(
             user_message_history.append(
                 {
                     "role": "user",
-                    "content": current_message,
+                    "content": current_message["content"],
                 }
             )
 
             # Stop the dialogue if 'finish conversation' is detected.
-            if "finish conversation" in current_message:
+            if "Conversation finished." in current_message["content"]:
                 break
             # Otherwise, continue the turn if the user model is not None (multi-turn mode).
             elif user_model is not None:
                 current_dialogue = user_model.generate(
-                    messages=agent_message_history,
+                    messages=user_message_history,
                     generation_kwargs=user_model_generation_kwargs,
                 )
                 dialogue_history.append(current_dialogue)
@@ -171,12 +190,13 @@ def inference(
                 dialogue_history[-1] = {
                     "sender": current_sender,
                     "recipient": current_recipient,
-                    "message": "finish conversation unsuccessful",
+                    "message": "Finish the conversation unsuccessful.",
                     "original_message": current_message,
                 }
+                break
 
         elif current_recipient == "executor":
-            tool_calls = dialogue_history[-1]["tool_calls"]
+            tool_calls = dialogue_history[-1]["message"]["tool_calls"]
             if executor:
                 tool_output_list = executor.call_functions(tool_calls)
                 dialogue_history.append(
@@ -188,7 +208,6 @@ def inference(
                         ),
                     }
                 )
-            # For single turn evaluation, there is no executor.
             else:
                 break
         else:

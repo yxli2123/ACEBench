@@ -1,7 +1,11 @@
+import os
 from typing import Any, Dict, List
 
-from model_base import BaseModelInference
 from openai import NOT_GIVEN
+
+from .model_base import BaseModelInference
+
+DEBUG = os.environ.get("DEBUG", False)
 
 
 class UserModelInference(BaseModelInference):
@@ -9,8 +13,13 @@ class UserModelInference(BaseModelInference):
         self,
         messages: List[Dict[str, Any]],
         generation_kwargs: Dict[str, Any],
-        functions: List[Any] | None | NOT_GIVEN = NOT_GIVEN,
-    ) -> Dict[str, str]:
+        functions: List[Any] | None | type[NOT_GIVEN] = NOT_GIVEN,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        # if DEBUG:
+        #     print(30 * "=", "user model", 30 * "=")
+        #     print(messages)
+
         # Obtain the raw response from the LLM.
         message = self._generate(
             messages=messages,

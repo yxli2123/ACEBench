@@ -11,7 +11,8 @@ user: 用户
 assistant: 进行API请求调用的AI助手角色
 tool: 提供工具调用的返回结果
 
-"""
+API说明：
+{function}"""
 
 SYSTEM_PROMPT_FOR_PREFERENCE_DATA_ZH = """你是一个AI助手，你的角色名为assistant，请根据给定的API说明，对话历史1..t和人物画像，为角色assistant生成在步骤t+1中应该调用的API请求，API请求以[ApiName(key1='value1', key2='value2', ...)]的格式输出，将ApiName替换为实际的API名称，将key1、key2等替换为实际的参数名称，将value1、value2替换为实际参数取值。输出应以方括号"["开头，以方括号"]"结尾。
 API请求有多个时以英文逗号隔开，比如[ApiName(key1='value1', key2='value2', ...), ApiName(key1='value1', key2='value2', ...), ...]。不要在输出中输出任何其他解释或提示或API调用的结果。
@@ -27,7 +28,8 @@ user: 用户
 assistant: 进行API请求调用的AI助手角色
 tool: 提供工具调用的返回结果
 
-"""
+API说明：
+{function}"""
 
 SYSTEM_PROMPT_FOR_SPECIAL_DATA_ZH = """你是一个AI系统，你的角色为assistant，请根据给定的API说明和对话历史1..t，为角色assistant生成在步骤t+1中应该调用的API请求。下面是两种具体情况：
 1 当用户提供的信息清晰明确并且问题能通过候选函数列表解决时：
@@ -47,7 +49,8 @@ API请求以[ApiName(key1='value1', key2='value2', ...), ApiName(key1='value1', 
 user: 用户
 assistant: 进行API请求调用的AI助手角色
 
-"""
+API说明：
+{function}"""
 
 USER_PROMPT_ZH = """对话历史1..t:\n{question}"""
 
@@ -151,21 +154,19 @@ execution: 执行api调用并返回结果
 """
 
 MULTI_STEP_AGENT_PROMPT_SYSTEM_ZH = """你是一个AI系统，你的角色为system，请根据给定的API说明和对话历史1..t，为角色system生成在步骤t+1中生成相应的内容。
-1 如果上一步提供的信息完整，能够正常进行api的调用，你应该调用的API请求，API请求以[ApiName(key1='value1', key2='value2', ...)]的格式输出，将ApiName替换为实际的API名称，将key1、key2等替换为实际的参数名称，将value1>、value2替换为实际参数取值。输出应以方括号"["开头，以方括号"]"结尾。API请求有多个时以英文逗号隔开，比如[ApiName(key1='value1', key2='value2', ...), ApiName(key1='value1', key2='value2', ...), ...]。不要在输出中输
-出任何其他解释或提示或API调用的结果。\n 
+1 如果上一步提供的信息完整，能够正常进行api的调用，你应该调用的API请求，API请求以[ApiName(key1='value1', key2='value2', ...)]的格式输出,不要在输出中输出任何其他解释或提示或API调用的结果。
 如果API参数描述中没有特殊说明，则该参数为非必选参数（用户输入中提及的参数需要包含在输出中，如果未提及，则不需要包含在输出中）。\n如果API参数描述未指定取值格式要求，则该参数取值使用用户原文。
-2 当一个任务需要多个步骤才能完成(步骤之间有严格的前后关系)，你需要一步步执行，并根据每一轮execution返回的结果决定下一步如何执行。
-3 一般不使用并行调用的方法，也就是一次只调用一个函数。
+2 如果你得到的信息不完整，需要向user提问，以获得完整的信息。你不能扮演user去回答一些文职的问题，应该及时像user询问。
 
-请注意，如果需要进行api调用，请严格遵守调用规则[ApiName(key1='value1', key2='value2', ...)]，此时不得输出其他内容。
-当你认为任务已经完成，请返回"finish conversation"以结束对话。
+请注意，如果需要进行api调用，请严格遵守调用规则[ApiName(key1='value1', key2='value2', ...)]，此时不得输出其他文本内容。
 
 角色说明：
 user: 用户 
 agent: 进行API请求调用的AI系统角色 
 execution: 执行api调用并返回结果
-"""
 
+你需要遵循的规则如下：\n
+"""
 
 SYSTEM_PROMPT_USER_MODEL_ZH = """你是一个AI，擅长角色扮演。你需要扮演的角色如下：
 {role}

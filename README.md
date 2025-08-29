@@ -188,7 +188,7 @@ To evaluate the performance of the models, use the `eval_main.py` script. This s
 ### Basic Usage
 
 ```bash
-python eval_main.py --model <model_name> --category <category> --language <language>
+python evaluate.py --model <model_name> --category <category> --language <language>
 ```
 
 ## 📄 Citation

@@ -4,7 +4,7 @@ from .prompt_en import *
 from .prompt_zh import *
 
 
-def compose_agent_system_prompt(
+def compose_agent_system_prompt_fc(
     category: str,
     involved_classes: List[str],
     language: str,
@@ -35,7 +35,7 @@ def compose_agent_system_prompt(
     return agent_system_prompt
 
 
-def compose_user_system_message(
+def compose_user_system_message_fc(
     role: str, language: str
 ) -> List[Dict[str, str]]:
     if language == "zh":
@@ -58,10 +58,7 @@ def compose_user_system_message(
         raise KeyError("Language not supported.")
 
 
-def compose_preference_system_prompt(
-    profile,
-    language,
-):
+def compose_preference_system_prompt_fc(profile, language):
     if language == "zh":
         system_prompt = SYSTEM_PROMPT_FOR_PREFERENCE_DATA_ZH.format(
             profile=profile
@@ -75,7 +72,7 @@ def compose_preference_system_prompt(
     return system_prompt
 
 
-def compose_special_system_prompt(time, language):
+def compose_special_system_prompt_fc(time, language):
     if language == "zh":
         system_prompt = SYSTEM_PROMPT_FOR_SPECIAL_DATA_ZH.format(time=time)
     elif language == "en":
@@ -85,7 +82,7 @@ def compose_special_system_prompt(time, language):
     return system_prompt
 
 
-def compose_normal_system_prompt(time, language):
+def compose_normal_system_prompt_fc(time, language):
     if language == "zh":
         system_prompt = SYSTEM_PROMPT_FOR_NORMAL_DATA_ZH.format(time=time)
     elif language == "en":

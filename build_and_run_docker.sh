@@ -13,7 +13,9 @@ sudo docker build \
     -f Dockerfile_acebench.local .
 echo "Built docker image nemo-eval:${RANDOM_TAG}"
 
+
 # Change -v /fsx-pretraining:/fsx-pretraining \ if you have different mnt.
+#RANDOM_TAG=nemo-eval:4c5adc1e92abe70ea29ef973
 echo "Running docker image nemo-eval:${RANDOM_TAG}"
 sudo docker run --gpus all -p 8661:8661 \
     --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 -it --rm \

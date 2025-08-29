@@ -184,7 +184,7 @@ python generate.py --model Qwen2.5-3B-Instruct-local --model-path /mnt/nas/ckpt/
 ### 基本用法
 
 ```bash
-python eval_main.py --model <model_name> --category <category> --language <language>
+python evaluate.py --model <model_name> --category <category> --language <language>
 ```
 
 ## 📄 引语

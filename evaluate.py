@@ -119,7 +119,7 @@ def normal_single_turn_eval(
     output_file_dir = os.path.join(OUTPUT_PATH, model_name)
     save_score_as_json(output_file_name, result, output_file_dir)
 
-    convert_result_to_excel(model_name, test_category, paths)
+    # convert_result_to_excel(model_name, test_category, paths)
     return accuracy
 
 
@@ -280,7 +280,7 @@ def normal_multi_turn_eval(
     output_file_dir = os.path.join(OUTPUT_PATH, model_name)
     save_score_as_json(output_file_name, result, output_file_dir)
 
-    convert_result_to_excel(model_name, test_category, paths)
+    # convert_result_to_excel(model_name, test_category, paths)
 
     return end_accuracy
 
@@ -378,7 +378,7 @@ def special_eval(
     output_file_name = "data_" + category + "_score.json"
     output_file_dir = os.path.join(OUTPUT_PATH, model_name)
     save_score_as_json(output_file_name, wrong_list, output_file_dir)
-    convert_result_to_excel(model_name, category, paths)
+    # convert_result_to_excel(model_name, category, paths)
     return accuracy
 
 
@@ -607,74 +607,71 @@ def agent_eval_process(
 
 
 #### Main runner function ####
-def runner(model_names, categories, paths):
-    for model_name in model_names:
-        for category in categories:
-            print(f"🔍 Running test: {category}")
+def runner(data_dir, result_dir, categories, paths, model_name):
+    for category in categories:
+        print(f"🔍 Running test: {category}")
 
-            model_result_path = build_result_path(
-                INPUT_PATH, model_name, category, "_result.json"
+        model_result_path = os.path.join(result_dir, f"result_{category}.json")
+        model_result = load_file(model_result_path)
+
+        prompt_path = os.path.join(data_dir, f"data_{category}.json")
+        prompt = load_file(prompt_path)
+
+        possible_answer_path = os.path.join(
+            data_dir, "possible_answer", f"data_{category}.json"
+        )
+        possible_answer = load_file(possible_answer_path)
+
+        if "special" in category:
+            accuracy = special_eval(
+                model_result,
+                prompt,
+                possible_answer,
+                category,
+                model_name,
+                paths,
             )
-            model_result = load_file(model_result_path)
-
-            prompt_path = build_data_path(PROMPT_PATH, category)
-            prompt = load_file(prompt_path)
-
-            possible_answer_path = build_data_path(
-                POSSIBLE_ANSWER_PATH, category
+            print(
+                f"Model: {model_name} | ✔️ Test '{category}' is done! 🚀 Accuracy: {accuracy}."
             )
-            possible_answer = load_file(possible_answer_path)
 
-            if "special" in category:
-                accuracy = special_eval(
-                    model_result,
-                    prompt,
-                    possible_answer,
-                    category,
-                    model_name,
-                    paths,
-                )
-                print(
-                    f"Model: {model_name} | ✔️ Test '{category}' is done! 🚀 Accuracy: {accuracy}."
-                )
+        elif "agent" in category:
+            end_accuracy, process_accuracy = agent_eval(
+                model_result,
+                prompt,
+                possible_answer,
+                category,
+                model_name,
+            )
+            print(
+                f"Model: {model_name} | ✔️ Test '{category}' is done! | End_to_End Accuracy: {end_accuracy} | Process Accuracy: {process_accuracy}"
+            )
 
-            elif "agent" in category:
-                end_accuracy, process_accuracy = agent_eval(
-                    model_result,
-                    prompt,
-                    possible_answer,
-                    category,
-                    model_name,
-                )
-                print(
-                    f"Model: {model_name} | ✔️ Test '{category}' is done! | End_to_End Accuracy: {end_accuracy} | Process Accuracy: {process_accuracy}"
-                )
+        elif "normal_multi_turn" in category:
+            end_accuracy = normal_multi_turn_eval(
+                model_result,
+                prompt,
+                possible_answer,
+                category,
+                model_name,
+                paths,
+            )
+            print(
+                f"Model: {model_name} | ✔️ Test '{category}' is done! | Accuracy: {end_accuracy}"
+            )
 
-            elif "normal_multi_turn" in category:
-                end_accuracy = normal_multi_turn_eval(
-                    model_result,
-                    prompt,
-                    possible_answer,
-                    category,
-                    model_name,
-                    paths,
-                )
-                print(
-                    f"Model: {model_name} | ✔️ Test '{category}' is done! | Accuracy: {end_accuracy}"
-                )
-
-            else:
-                accuracy = normal_single_turn_eval(
-                    model_result,
-                    prompt,
-                    possible_answer,
-                    category,
-                    model_name,
-                    paths,
-                )
-                print(
-                    f"Model: {model_name} | ✔️ Test '{category}' is done! | Accuracy: {accuracy}"
-                )
+        else:
+            accuracy = normal_single_turn_eval(
+                model_result,
+                prompt,
+                possible_answer,
+                category,
+                model_name,
+                paths,
+            )
+            print(
+                f"Model: {model_name} | ✔️ Test '{category}' is done! | Accuracy: {accuracy}"
+            )
 
     update_result_table_with_score_file(RESULT_TABLE, OUTPUT_PATH)
     generate_result_csv(RESULT_TABLE, OUTPUT_PATH)
@@ -683,15 +680,9 @@ def runner(model_names, categories, paths):
 def get_paths(language):
     base_paths = {
         "zh": {
-            "INPUT_PATH": "./result_all/result_zh/",
-            "PROMPT_PATH": "./data/zh/",
-            "POSSIBLE_ANSWER_PATH": "./data/zh/possible_answer/",
             "OUTPUT_PATH": "./score_all/score_zh/",
         },
         "en": {
-            "INPUT_PATH": "./result_all/result_en/",
-            "PROMPT_PATH": "./data/en/",
-            "POSSIBLE_ANSWER_PATH": "./data/en/possible_answer/",
             "OUTPUT_PATH": "./score_all/score_en/",
         },
     }
@@ -705,9 +696,20 @@ if __name__ == "__main__":
 
     parser.add_argument("--language", type=str, default="zh")
     parser.add_argument(
-        "--model",
-        nargs="+",
+        "--model-name",
         type=str,
+        help="A list of model names to evaluate",
+    )
+    parser.add_argument(
+        "--data-dir",
+        type=str,
+        default="./data/",
+        help="A list of model names to evaluate",
+    )
+    parser.add_argument(
+        "--result-root-dir",
+        type=str,
+        default="./results/",
         help="A list of model names to evaluate",
     )
     parser.add_argument(
@@ -722,10 +724,9 @@ if __name__ == "__main__":
     paths = get_paths(args.language)
 
     if paths:
-        INPUT_PATH = paths["INPUT_PATH"]
-        PROMPT_PATH = paths["PROMPT_PATH"]
-        POSSIBLE_ANSWER_PATH = paths["POSSIBLE_ANSWER_PATH"]
         OUTPUT_PATH = paths["OUTPUT_PATH"]
+
+    language = args.language
 
     # Extract test categories
     test_categories = [
@@ -734,16 +735,19 @@ if __name__ == "__main__":
         for category in (ACE_DATA_CATEGORY.get(test_category, [test_category]))
     ]
 
-    # Extract and normalize model names
-    model_names = [
-        model_name.replace("/", "_") for model_name in (args.model or [])
-    ]
-
-    # Get language
-    language = args.language
+    result_dir = os.path.join(
+        args.result_root_dir, args.model_name, args.language
+    )
+    data_dir = os.path.join(args.data_dir, args.language)
 
     # Call the main function
-    runner(model_names, test_categories, paths)
+    runner(
+        data_dir=data_dir,
+        result_dir=result_dir,
+        categories=test_categories,
+        paths=paths,
+        model_name=args.model_name,
+    )
 
-    print(f"Models being evaluated: {model_names}")
+    print(f"Models being evaluated: {args.model_name}")
     print(f"Test categories being used: {test_categories}")

@@ -7,10 +7,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from category import ACE_DATA_CATEGORY
-from data.data_utils import convert_text_to_messages
+from data.data_utils import convert_text_to_messages, maybe_rm_role_in_text
+from model_inference.agent_map import AGENT_NAME_MAP
 from model_inference.common_inference import inference
 from model_inference.executor import Executor
-from model_inference.model_agent import Qwen3AgentInference
 from model_inference.model_base import BaseModelInference
 from model_inference.model_user import UserModelInference
 from model_inference.prompt.prompt_utils import (
@@ -18,25 +18,40 @@ from model_inference.prompt.prompt_utils import (
     compose_normal_system_prompt,
     compose_preference_system_prompt,
     compose_special_system_prompt,
-    compose_user_system_prompt,
+    compose_user_system_message,
 )
+from model_inference.prompt_fc.prompt_utils import (
+    compose_agent_system_prompt_fc,
+    compose_normal_system_prompt_fc,
+    compose_preference_system_prompt_fc,
+    compose_special_system_prompt_fc,
+    compose_user_system_message_fc,
+)
+from model_inference.utils import calls_to_pystr
+
+DEBUG = os.environ.get("DEBUG", False)
 
 
 def parser():
     parser = argparse.ArgumentParser(description="Generate ACEBench Results.")
     # Model name
     parser.add_argument(
-        "--model",
+        "--model_name",
         type=str,
-        default="qwen3",
+        default="Qwen3-8B-FC",
         help="Name of the model to use",
     )
-
-    # For local models, specify the model path
     parser.add_argument(
-        "--model-local-path",
+        "--api-url",
         type=str,
-        help="Path to the model for local models",
+        default="http://localhost:8181",
+        help="",
+    )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default="EMPTY",
+        help="",
     )
 
     # Category of the model you want to test, default is "all"
@@ -47,7 +62,6 @@ def parser():
         nargs="+",
         help="Category of the model you want to test",
     )
-
     parser.add_argument(
         "--data-dir",
         type=str,
@@ -68,7 +82,7 @@ def parser():
     parser.add_argument(
         "--temperature",
         type=float,
-        default=0.7,
+        default=0.01,
         help="Temperature parameter to control randomness of model output",
     )
     # Top-p parameter to control diversity of model output, default is 1
@@ -82,20 +96,10 @@ def parser():
     parser.add_argument(
         "--max-tokens",
         type=int,
-        default=4000,
+        default=4096,
         help="Maximum number of tokens to generate",
     )
-    # Number of GPUs to use, default is 1
-    parser.add_argument(
-        "--num-gpus", default=1, type=int, help="Number of GPUs to use"
-    )
-    # GPU memory utilization rate, default is 0.9
-    parser.add_argument(
-        "--gpu-memory-utilization",
-        default=0.9,
-        type=float,
-        help="GPU memory utilization rate",
-    )
+
     # Language for model output, choose 'en' for English or 'zh' for Chinese
     parser.add_argument(
         "--language",
@@ -115,26 +119,27 @@ def parser():
     parser.add_argument(
         "--max-dialog-turns",
         type=int,
-        default=40,
+        default=32,
         help="Maximum number of dialog turns allowed for agent interactions",
     )
     # Model used by the user role in the agent, it is recommended to use an advanced large model
     parser.add_argument(
-        "--user-model",
+        "--user-model-name",
         type=str,
         default="gpt-4o-mini-2024-07-18",
         help="Model used by the user role in the agent",
     )
     parser.add_argument(
-        "--enable-think",
-        action="store_ture",
-        help="Enable thinking in the system prompt.",
+        "--user-api-url",
+        type=str,
+        default="http://localhost:8181",
+        help="",
     )
     parser.add_argument(
-        "--tensor-parallel-size",
-        type=int,
-        default=1,
-        help="Tensor parallel size.",
+        "--user-api-key",
+        type=str,
+        default="EMPTY",
+        help="",
     )
 
     args = parser.parse_args()
@@ -154,26 +159,42 @@ def generate_single_case(
         "max_tokens": args.max_tokens,
     }
 
-    test_id = test_case["test_id"]
+    test_id = test_case["id"]
+
+    # Map prompt for FC mode and prompt mode.
+    if "fc" in args.model_name.lower():
+        _compose_agent_system_prompt = compose_agent_system_prompt_fc
+        _compose_user_system_message = compose_user_system_message_fc
+        _compose_special_system_prompt = compose_special_system_prompt_fc
+        _compose_preference_system_prompt = compose_preference_system_prompt_fc
+        _compose_normal_system_prompt = compose_normal_system_prompt_fc
+    else:
+        _compose_agent_system_prompt = compose_agent_system_prompt
+        _compose_user_system_message = compose_user_system_message
+        _compose_special_system_prompt = compose_special_system_prompt
+        _compose_preference_system_prompt = compose_preference_system_prompt
+        _compose_normal_system_prompt = compose_normal_system_prompt
 
     # Multi-turn and multi-step mode.
     if "agent" in test_id:
         initial_config = test_case["initial_config"]
         involved_classes = test_case["involved_classes"]
-        test_idx = test_id.split("_")[-1]
         category = "multi_turn" if "multi_turn" in test_id else "multi_step"
 
         # Initialize agent model by injecting the system prompt.
-        agent_system_prompt = compose_agent_system_prompt(
+        agent_system_prompt = _compose_agent_system_prompt(
             category, involved_classes, args.language
         )
 
         # Initialize user model by injecting the system prompt.
-        if "multi_turn" in test_case:
-            user_system_prompt = compose_user_system_prompt()
+        if category == "multi_turn":
+            user_message_history = _compose_user_system_message(
+                role=test_case["question"],
+                language=args.language,
+            )
         else:
             user_model = None
-            user_system_prompt = None
+            user_message_history = None
 
         # Initialize the executor.
         executor = Executor(
@@ -186,22 +207,24 @@ def generate_single_case(
             agent_model=agent_model,
             agent_system_prompt=agent_system_prompt,
             question=test_case["question"],
-            functions=test_case["functions"],
+            functions=test_case["function"],
             max_dialog_turns=args.max_dialog_turns,
             generation_kwargs=generation_kwargs,
             executor=executor,
             user_model=user_model,
-            user_system_prompt=user_system_prompt,
+            user_message_history=user_message_history,
         )
 
         # Obtain `result` from the involved classes' status.
-        class_status = executor.return_exe_class_status
+        class_status = executor.return_exe_class_status()
 
         # Obtain `process` from message (agent to executor) in the dialogue history.
         agent_fc_query_list = []
         for dia in dialogue:
             if dia["recipient"] == "executor":
-                agent_fc_query_list.append(dia["message"]["content"])
+                fc_call = dia["message"]["tool_calls"]
+                fc_call_str = calls_to_pystr(fc_call)
+                agent_fc_query_list.append(fc_call_str)
 
         result = {
             "id": test_id,
@@ -212,21 +235,18 @@ def generate_single_case(
     else:
         # Initialize agent model by injecting the system prompt.
         if "special" in test_id:
-            agent_system_prompt = compose_special_system_prompt(
+            agent_system_prompt = _compose_special_system_prompt(
                 time=test_case.get("time", ""),
-                functions=test_case["functions"],
                 language=args.language,
             )
         elif "preferences" in test_id:
-            agent_system_prompt = compose_preference_system_prompt(
+            agent_system_prompt = _compose_preference_system_prompt(
                 profile=test_case.get("profile", ""),
-                functions=test_case["functions"],
                 language=args.language,
             )
         else:
-            agent_system_prompt = compose_normal_system_prompt(
+            agent_system_prompt = _compose_normal_system_prompt(
                 time=test_case.get("time", ""),
-                functions=test_case["functions"],
                 language=args.language,
             )
 
@@ -245,26 +265,32 @@ def generate_single_case(
             question = agent_message_history.pop(-1)["content"]
         else:
             agent_message_history = None
-            question = test_case["question"]
+            question = maybe_rm_role_in_text(test_case["question"])
 
         dialogue = inference(
             agent_model=agent_model,
             agent_system_prompt=agent_system_prompt,
             question=question,
-            functions=test_case["functions"],
+            functions=test_case["function"],
             max_dialog_turns=1,
             generation_kwargs=generation_kwargs,
             agent_message_history=agent_message_history,
         )
 
         # Last dialogue should be from the agent to the executor (null).
-        if dialogue[-1]["recipient"] != "executor":
-            warnings.warn("Last recipient is NOT executor.")
-        agent_fc_query = dialogue[-1]["message"]["content"]
+        if dialogue[-1]["recipient"] == "executor":
+            agent_fc = dialogue[-1]["message"]["tool_calls"]
+            # Evaluation only allows a string like `[func1(arg1=val1),func2(arg2=val2)]`
+            agent_fc_str = calls_to_pystr(agent_fc)
+        else:
+            warnings.warn(
+                f"Last recipient is NOT executor, get {dialogue[-1]['recipient']}"
+            )
+            agent_fc_str = dialogue[-1]["message"]["content"]
 
         result = {
             "id": test_id,
-            "result": agent_fc_query,
+            "result": agent_fc_str,
         }
 
     return result, dialogue
@@ -294,7 +320,7 @@ def generate_single_category(
         print(f"Error: Failed to parse JSON in file - {file_path}")
 
     def has_completed(_test_case: Dict[str, Any]) -> bool:
-        _test_id = _test_case["test_id"]
+        _test_id = _test_case["id"]
         if _test_id in completed_id_set:
             return True
         return False
@@ -320,7 +346,26 @@ def generate_single_category(
             result, log = future.result()
             results[idx], logs[idx] = result, log
 
+    # results = []
+    # logs = []
+    # for test_case in test_cases:
+    #     if has_completed(test_case):
+    #         continue
+    #
+    #     print(test_case["id"])
+    #
+    #     result, log = generate_single_case(
+    #         args=args,
+    #         agent_model=agent_model,
+    #         test_case=test_case,
+    #         user_model=user_model,
+    #     )
+    #
+    #     results.append(result)
+    #     logs.append(log)
+
     # Write the results and logs.
+    print("===> Writing results and logs ...\n")
     with open(result_path, "a", encoding="utf-8") as fp_result:
         with open(log_path, "a", encoding="utf-8") as fp_log:
             for result, log in zip(results, logs):
@@ -351,32 +396,17 @@ def main():
         for test_name in ACE_DATA_CATEGORY[category]
     }
 
-    # Launch the agent model and user model.
-    vllm_kwargs = {
-        "local-model-path": args.local_model_path,
-        "gpu-memory-utilization": args.gpu_memory_utilization,
-        "num_gpus": args.num_gpus,
-        "port": args.port,
-        "model-max-len": args.model_max_len,
-        "dtype": args.dtype,
-    }
-    if args.fc_mode:
-        vllm_kwargs.update(
-            {
-                "additional-args": "--enable-auto-tool-choice --tool-call-parser hermes"
-            }
-        )
-
-    agent_model = Qwen3AgentInference(
+    agent_inference = AGENT_NAME_MAP[args.model_name]
+    agent_model = agent_inference(
         model_name=args.model_name,
-        vllm_kwargs=vllm_kwargs,
-        fc_mode=args.fc_mode,
+        base_url=args.api_url,
+        api_key=args.api_key,
     )
 
     user_model = UserModelInference(
         model_name=args.user_model_name,
-        base_url=args.base_url,
-        api_key=args.api_key,
+        base_url=args.user_api_url,
+        api_key=args.user_api_key,
     )
 
     for test_category in test_names:
