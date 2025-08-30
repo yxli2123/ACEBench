@@ -1,3 +1,45 @@
+# Basic Usage
+
+Autor: Yixiao Li
+
+## 1. Build and run docker image
+
+- Change the `WORKSPACE=/ebs-basemodeling/liyixiao/ACEBench/` to your project directory.
+- Change `-v /ebs-basemodeling:/ebs-basemodeling \` in the `docker run` command to your disk.
+
+Run following command to build and run docker image. It may take a while.
+
+```shell
+sh build_and_run_docker.sh
+```
+
+## 2. Generate prediction by vLLM
+
+Run following example:
+
+```shell
+sh run_generate.sh
+```
+
+In this example, you will 1) launch the model to evaluate in vLLM backend and 2) generate the prediction files.
+
+## 3. Evaluate prediction
+
+Run following example:
+
+```shell
+sh run_evaluation.sh
+```
+
+## 4. Define your own model: model and prompt
+This involves 4 steps:
+1. Define a model by inherit `BaseAgentInference` in [model_agent.py](model_inference/model_agent.py). 
+2. Add the new model to the `AGENT_NAME_MAP` in [agent_map.py](model_inference/agent_map.py).
+3. Define system prompts for the new model under [prompt](model_inference/prompt). You can reuse the existing prompts.
+4. Add the prompt to `PROMPT_NAME_MAP` in [prompt_map.py](model_inference/prompt/prompt_map.py).
+
+---
+
 # ACEBench: Who Wins the Match Point in Tool Usage?
 
 <p align="center">
