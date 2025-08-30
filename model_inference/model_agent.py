@@ -1,6 +1,7 @@
 import json
 import logging
 import warnings
+from copy import deepcopy
 from typing import Any, Dict, List
 
 from openai import NOT_GIVEN
@@ -73,7 +74,10 @@ class BaseAgentInference(BaseModelInference):
         if self.has_tool_calls(message, parsed_text):
             # If the agent calls any tools, pass the dialogue to an executor.
             # [{"name": function_name, "arguments": arguments_in_json_str}]
-            tool_calls = self.convert_fc_namespace_to_dict(message.tool_calls)
+            if getattr(message, "tool_calls"):
+                tool_calls = self.convert_fc_namespace_to_dict(message.tool_calls)
+            else:
+                tool_calls = deepcopy(parsed_text.get("tool_calls"))
 
             dialogue.update(
                 {
@@ -165,7 +169,7 @@ class Qwen3AgentInference(BaseAgentInference):
         **kwargs,
     ):
         messages = self._inject_function_to_sys_prompt(messages, functions)
-        return messages, functions
+        return messages, NOT_GIVEN
 
     def has_tool_calls(self, message, parsed_text) -> bool:
         if parsed_text.get("tool_calls"):

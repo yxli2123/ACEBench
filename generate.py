@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from category import ACE_DATA_CATEGORY
-from data.data_utils import convert_text_to_messages, maybe_rm_role_in_text
+from data.data_utils import convert_text_to_messages
 from model_inference.agent_map import AGENT_NAME_MAP
 from model_inference.common_inference import inference
 from model_inference.executor import Executor
@@ -242,13 +242,10 @@ def generate_single_case(
         #   {"role": "assistant", "content": "where?"},
         #   {"role": "user", "content": "in Paris."},
         # ]
-        if "multi_turn" in test_id:
-            agent_message_history = convert_text_to_messages(test_case["question"])
-            # The last one is always the user's query.
-            question = agent_message_history.pop(-1)["content"]
-        else:
-            agent_message_history = None
-            question = maybe_rm_role_in_text(test_case["question"])
+
+        agent_message_history = convert_text_to_messages(test_case["question"])
+        # The last one is always the user's query.
+        question = agent_message_history.pop(-1)["content"]
 
         dialogue = inference(
             agent_model=agent_model,

@@ -165,12 +165,3 @@ user: 用户
 agent: 进行API请求调用的AI系统角色 
 execution: 执行api调用并返回结果
 """
-
-
-SYSTEM_PROMPT_USER_MODEL_ZH = """你是一个AI，擅长角色扮演。你需要扮演的角色如下：
-{role}
-
-同时，user会扮演你的助手。
-
-根据给定的角色，请向user寻求帮助或者回复user。
-"""

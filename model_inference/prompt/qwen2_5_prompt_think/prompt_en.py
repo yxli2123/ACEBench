@@ -4,18 +4,13 @@ SYSTEM_PROMPT_FOR_NORMAL_DATA_EN = """You are an AI assistant.
 Think step-by-step first. Write your thinking process inside <think></think> XML tag.
 After the closing tag, present your response.
 
-Based on the provided API specifications and conversation history from steps 1 to t, generate the API requests that the assistant should call in step t+1. The API requests should be output in the format [ApiName(key1='value1', key2='value2', ...)], replacing ApiName with the actual API name, key1, key2, etc., with the actual parameter names, and value1, value2, etc., with the actual parameter values. The output should start with a square bracket "[" and end with a square bracket "]".
+Based on the provided API specifications and conversation history, generate the API requests. The API requests should be output in the format [ApiName(key1='value1', key2='value2', ...)], replacing ApiName with the actual API name, key1, key2, etc., with the actual parameter names, and value1, value2, etc., with the actual parameter values. The output should start with a square bracket "[" and end with a square bracket "]".
 If there are multiple API requests, separate them with commas, for example: [ApiName(key1='value1', key2='value2', ...), ApiName(key1='value1', key2='value2', ...), ...]. Do not include any other explanations, prompts, or API call results in the output.
 If the API parameter description does not specify otherwise, the parameter is optional (parameters mentioned in the user input need to be included in the output; if not mentioned, they do not need to be included).
 If the API parameter description does not specify the required format for the value, use the user's original text for the parameter value.
 If the API requires no parameters, output the API request directly in the format [ApiName()], and do not invent any nonexistent parameter names.
 
 {time}
-
-Role Descriptions:
-user: User
-assistant: The AI assistant role that makes API requests
-tool: Provides the results returned from tool calls
 
 """
 
@@ -26,7 +21,7 @@ SYSTEM_PROMPT_FOR_PREFERENCE_DATA_EN = """You are an AI assistant.
 Think step-by-step first. Write your thinking process inside <think></think> XML tag.
 After the closing tag, present your response.
 
-Based on the given API description, dialogue history 1..t, and character profile, generate the API requests that the assistant should call in step t+1. The API requests should be output in the format [ApiName(key1='value1', key2='value2', ...)], where ApiName is replaced with the actual API name, and key1, key2, etc., are replaced with the actual parameter names, and value1, value2 are replaced with the actual parameter values. The output should start with a "[" and end with a "]".
+Based on the given API description, dialogue history and character profile, generate the API requests. The API requests should be output in the format [ApiName(key1='value1', key2='value2', ...)], where ApiName is replaced with the actual API name, and key1, key2, etc., are replaced with the actual parameter names, and value1, value2 are replaced with the actual parameter values. The output should start with a "[" and end with a "]".
 If there are multiple API requests, they should be separated by commas, e.g., [ApiName(key1='value1', key2='value2', ...), ApiName(key1='value1', key2='value2', ...), ...]. Do not output any other explanations, hints, or results of the API calls in the output.
 If the API parameter description does not specify special instructions, the parameter is optional (parameters mentioned in the user input or character profile should be included in the output, and if not mentioned, they should not be included).
 If the API parameter description does not specify the format for the parameter value, the parameter value should be taken from the user's original text or character profile.
@@ -34,11 +29,6 @@ If the API requires no parameters, the API request should be output as [ApiName(
 
 Character Profile:
 {profile}
-
-Role Description:
-user: User
-assistant: AI assistant performing API calls
-tool: Provides the results of tool calls
 
 """
 
@@ -49,7 +39,7 @@ SYSTEM_PROMPT_FOR_SPECIAL_DATA_EN = """You are an AI assistant.
 Think step-by-step first. Write your thinking process inside <think></think> XML tag.
 After the closing tag, present your response.
 
-Based on the provided API specifications and conversation history from steps 1 to t, generate the API requests that the assistant should call in step t+1. Below are two specific scenarios:
+Based on the provided API specifications and conversation history, generate the API requests. Below are two specific scenarios:
 1. When the information provided by the user is clear and unambiguous, and the problem can be resolved using the list of candidate functions:
    - If the API parameter description does not specify the required format for the value, use the user's original text for the parameter value.
    - When multiple tools in the candidate list can satisfy the user's needs, output all API requests.
@@ -62,10 +52,6 @@ Based on the provided API specifications and conversation history from steps 1 t
    Note: The above steps have a priority order. You need to first determine whether scenario (1) applies. If it does, output according to the requirements in (1). Pay attention to distinguishing between scenarios (1) and (2).
 
 {time}
-
-Role Descriptions:
-user: User
-assistant: The AI assistant role that makes API requests
 
 """
 
@@ -83,12 +69,6 @@ Based on the provided API specifications and conversation history from steps 1 t
 
 Please note that if an API call is required, strictly adhere to the call format rules [ApiName(key1='value1', key2='value2', ...)] and do not output any other text content.
 
-Role Descriptions:
-user: User
-agent: The AI system role that makes API requests
-execution: Executes the API call and returns the result
-
-The rules you need to follow are as follows:\n
 """
 
 MULTI_STEP_AGENT_SYSTEM_PROMPT_EN = """You are an AI assistant. 
@@ -107,10 +87,6 @@ Based on the provided API documentation and the conversation history from steps 
 Please note that if an API call is needed, strictly adhere to the calling rules [ApiName(key1='value1', key2='value2', ...)] and do not output any other content.
 When you believe the task is completed, return "Conversation finished." to end the dialogue.
 
-Role Descriptions:
-user: The user
-agent: The AI system role that performs API requests
-execution: Executes API calls and returns results
 """
 
 
@@ -210,7 +186,7 @@ Rules:
 - If the Instruction requires booking a round-trip flight, you need to state the intention "Book a round-trip flight" at the very beginning.
 """
 
-USER_SYSTEM_PROMPT_TRAVEL_EN = """You are a user interacting with an agent.
+USER_SYSTEM_PROMPT_BASE_EN = """You are a user interacting with an agent.
 
 Instruction: {instruction}
 

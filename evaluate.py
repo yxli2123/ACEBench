@@ -667,8 +667,9 @@ def evaluate(
 
     score_all_path = os.path.join(score_dir, "score_all.json")
     if os.path.exists(score_all_path):
-        current_score_all = load_file(score_all_path)
-        current_score_all.update(score_all)
+        with open(score_all_path, "r") as f:
+            current_score_all = json.load(f)
+            current_score_all.update(score_all)
     else:
         current_score_all = score_all
     with open(score_all_path, "w", encoding="utf-8") as fp:
